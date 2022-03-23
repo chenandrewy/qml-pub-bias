@@ -71,22 +71,23 @@ pubcross = ret %>%
 
 
 # FIND INITIAL GUESS BY HAND ====
-
+# lognorm: (2, 2, NA) fits well
+# foldedt: (0, 0.5/0.2, 5) fits well
 
 # model parameters
-par.g = data.frame(
+par.hand = data.frame(
   pif = 0.4
-  , truefam  = 'lognorm' # see create_mutrue_object function for options
+  , truefam  = 'lognorm' # 'norm' or 'lognorm' or 'foldedt'
   , truepar1 = 2
-  , truepar2 = 3
-  , truepar3 = NA_real_
+  , truepar2 = 2
+  , truepar3 = NA
   , pubfam  = 'logistic' # 'piecelin' or 'logistic
   , tmid    = 2 # prob of pub is 0.5 at the midpoint
   , tslope  = 4
 )
 
 # make model tabs | pub object
-tabspub.g.o = par2observed(par.g)
+tabspub.g.o = par2observed(par.hand)
 
 # plot
 plot_2hist(
@@ -95,31 +96,30 @@ plot_2hist(
 
 
 
-# ESTIMATE ====
-
+# ONE ESTIMATE ====
 source('0_Environment.r')
+# doesn't work that great, unsurprising since because of the theorem
+# pif often stays close to the initial guess
 
 # estimation settings
-namevec = c('truepar1','truepar2', 'tmid', 'tslope', 'pif') # names of parameters to estimate
-
 est.point = list(
-  parbase = par.g
-  , namevec = namevec  
-  , parvecguess = par2parvec(par.g, namevec)
-  , parvecmin   = c(0.01, 0.01, 0.5, 1, 0.01)
-  , parvecmax   = NULL
+  parguess = par.hand %>% mutate(pif = 0.6)
+  , namevec = c('pif', 'truepar1','truepar2') # names of parameters to estimate  
 )
 
 # estimate
-est.point = one_estimate(est.point, pubcross$tabs)
+tempopts = opts.base
+tempopts$xtol_rel = 0.001
+tempopts$ftol_rel = 0.01
+est.point = one_estimate(est.point, pubcross$tabs, tempopts)
 
 # plot
-tabspub.o = par2observed(est$par)
+tabspub.o = par2observed(est.point$par)
 p1 = plot_2hist(
   pubcross$tabs, r(tabspub.o)(1e3), seq(0,18,1), 'data', 'model'
 )
 
-mu = create_mutrue_object(est$par)
+mu = create_mutrue_object(est.point$par)
 p2 = tibble(mu = r(mu)(1e3)) %>% 
   ggplot(
     aes(x=mu)
@@ -132,62 +132,91 @@ grid.arrange(p1,p2, nrow = 1)
 # output to console
 est.point
 
-# PLOT OBJECTIVE ====
 
-tempest = est.point
-tempest$namevec = 'pif'
-tabspub = pubcross$tabs
 
-# -1* the log likelihood
-negloglike = function(parvec){
-  par = parvec2par(parvec,tempest$parbase, tempest$namevec)
-  
-  # create observed t-stat object
-  tabspub.o = par2observed(par)
-  
-  onelike = d(tabspub.o)(tabspub)
-  onelike[onelike <= 0 ] = 1e-6 # might be a better way to do this
-  return = -1*mean(log( onelike ))
-  
-} # end negloglike
+# GRID ESTIMATE ====
 
-negloglike(0.5) %>% print()
+source('0_Environment.r')
 
-pif = seq(0.05,0.55,0.01)
-ll_list = pif*NA
-for (i in 1:length(pif)){
-  ll_list[i] = -1*negloglike(pif[i])
-}
+tic = Sys.time()
 
-plot(pif, ll_list)
+# estimation settings
+est.point = list(
+  parguess = par.hand
+  , namevec = c('pif', 'truepar1','truepar2', 'tmid','tslope')  
+  , pifgrid = seq(0.05,0.95,0.05)
+)
+
+tempopts = opts.base
+tempopts$print_level = 0
+tempopts$xtol_rel = 0.0001
+tempopts$ftol_rel = 0.001
+
+# estimate
+est.point =  pifgrid_estimate(est.point, pubcross$tabs, tempopts)
+
+# plot ====
+tabspub.o = par2observed(est.point$est$par)
+p1 = plot_2hist(
+  pubcross$tabs, r(tabspub.o)(1e3), seq(0,18,1), 'data', 'model'
+)
+
+mu = create_mutrue_object(est.point$est$par)
+p2 = tibble(mu = r(mu)(1e3)) %>%
+  ggplot(
+    aes(x=mu)
+  ) +
+  geom_histogram(aes(y=stat(density)))
+
+p3 = est.point$grid %>% ggplot(aes(x=pif,y=loglike)) + geom_point()
+
+tt = seq(0,4,0.25)
+p4 = tibble(
+  tt = tt, prob = prob_pub(tt,est.point$est$par)
+) %>% 
+  ggplot(aes(x=tt,y=prob)) + geom_point()
+
+grid.arrange(p1,p2,p3,p4, nrow = 2)
+
+# output to console
+est.point
+
+toc = Sys.time()
+
+toc - tic
 
 # BOOTSTRAP ====
-nboot = 10
+nboot = 100
 nsignal = nrow(pubcross)
 set.seed(1217)
 
 id_all = matrix(
   sample(1:nsignal, size = nsignal*nboot, replace = T), nrow = nboot 
 )
-namevec = c('truepar1','truepar2', 'tmid', 'tslope', 'pif') # names of parameters to estimate
 
 # estimation settings: use point estimate as initial guess
 est.boot = list(
-  parbase = est.point$par
-  , namevec = namevec  
-  , parvecguess = par2parvec(est.point$par, namevec)
-  , parvecmin   = c(0.01, 0.01, 0.5, 1, 0.01)
-  , parvecmax   = NULL
+  parguess = par.hand
+  , namevec = c('pif', 'truepar1','truepar2','tmid','tslope')  
+  , pifgrid = seq(0.05,0.95,0.05)
 )
 
+tempopts = opts.base 
+tempopts$print_level = 0
+tempopts$xtol_rel = 0.0001
+tempopts$ftol_rel = 0.001
 
 for (booti in 1:nboot){
   
   # bootstrap t-stats
   temp_tabs = pubcross$tabs[id_all[booti, ]]
   
-  temp_est = one_estimate(est.boot, temp_tabs)
-  temp_bootdat = temp_est$par %>% mutate(loglike = temp_est$loglike)
+  temp_est = pifgrid_estimate(est.boot, temp_tabs, tempopts)
+  temp_bootdat = temp_est$est$par %>% 
+    mutate(
+      loglike = temp_est$est$loglike
+      , hstar   = find_hurdle(temp_est$est$par)
+    )
   
   if (booti == 1){
     bootdat = temp_bootdat
@@ -195,7 +224,17 @@ for (booti in 1:nboot){
     bootdat = rbind(bootdat, temp_bootdat)
   }
   
-  print(bootdat)
+  print(temp_bootdat)
   
 } # end for booti
+
+
+
+# find t-hurdles ====
+
+hlist = pubcross$tabs %>% sort()
+hlist = hlist[hlist<4]
+
+
+
 

@@ -7,12 +7,14 @@ library(googledrive)
 library(readxl)
 
 # for estimation
+# 'algorithm'='NLOPT_LN_COBYLA' or 'NLOPT_LN_BOBYQA'
+
 library(nloptr)
-opts = list(
-  'algorithm'='NLOPT_LN_COBYLA'
+opts.base = list(
+  'algorithm'='NLOPT_LN_BOBYQA'
   , 'xtol_rel' = 1e-2
   , 'ftol_rel' = 1e-1
-  , print_level = 3
+  , print_level = 3 # 0, 1, 2, 3
   , maxtime = 20
 )
 library(distr) 
@@ -98,6 +100,22 @@ parvec2par = function(parvec,parbase,namevec){
   return(par)
 } # end parvec2par
 
+# lower and upper boudns of search space
+parveclim = function(namevec){
+  par.lb = data.frame(
+    pif = 0, truepar1 = 0, truepar2 = 0, truepar3 = 0, tmid = 0, tslope = 0
+  )
+  par.ub = data.frame(
+    pif = 1, truepar1 = 100, truepar2 = 100, truepar3 = 100, tmid = 3, tslope = 100
+  )
+  
+  out = list(
+    lb = par.lb %>% select(all_of(namevec)) %>% as.numeric()
+    , ub = par.ub %>% select(all_of(namevec)) %>% as.numeric()
+  )
+  
+  return = out
+} # end parveclim
 
 # function for turning two series into a histogram plot.  
 # This should be default in r but why is this so hard
@@ -129,35 +147,101 @@ plot_2hist = function(x1,x2,edge = seq(0,15,0.5), x1name = 'x1', x2name = 'x2'){
 
 
 
-one_estimate = function(est,tabspub){
+one_estimate = function(est,tabspub,opts=opts.base){
   
   # -1* the log likelihood
   negloglike = function(parvec){
-    par = parvec2par(parvec,est$parbase,est$namevec)
+    par = parvec2par(parvec,est$parguess,est$namevec)
     
     # create observed t-stat object
     tabspub.o = par2observed(par)
     
     onelike = d(tabspub.o)(tabspub)
     onelike[onelike <= 0 ] = 1e-6 # might be a better way to do this
-    return = -1*mean(log( onelike ))
+    out = -1*mean(log( onelike ))
+    return = out
     
   } # end negloglike
   
+  parvecguess = par2parvec(est$parguess, est$namevec)
+  
   # optimize
   opt = nloptr(
-    x0 = est$parvecguess
-    , lb = est$parvecmin
-    , ub = est$parvecmax
+    x0 = parvecguess
+    , lb = parveclim(est$namevec)$lb
+    , ub = parveclim(est$namevec)$ub
     , eval_f = negloglike
     , opts = opts
   )
   
   # pack output nicely along with settings
-  est$parvec = opt$solution
   est$loglike = -opt$objective
-  est$par    = parvec2par(est$parvec, est$parbase, est$namevec) 
+  est$par    = parvec2par(opt$solution, est$parguess, est$namevec) 
   
   return = est
   
 } # end one_estimate
+
+# estimate pi_f on a grid
+pifgrid_estimate = function(est,tabspub,opts = opts.base){
+  
+  # estimate at all pifs on a grid, coarsely
+  for (i in 1:length(est$pifgrid)){
+    
+    # modify one_estimate settings
+    tempest = est
+    tempest$namevec = tempest$namevec[tempest$namevec != 'pif'] # remove pif from namevec
+    tempest$parguess$pif = est$pifgrid[i] # replace pif guess with current grid
+    
+    tempest = one_estimate(tempest,tabspub,opts)
+    temppar = tempest$par %>% 
+      mutate(loglike = tempest$loglike)
+    
+    if ( i == 1 ){
+      estgrid = temppar
+    } else {
+      estgrid = rbind(estgrid,temppar)
+    } # if i == 1
+    
+    # feedback
+    # temppar %>% print()
+    
+  } # for i
+  
+  # find the pif that has the best loglike and estimate again, but finely
+  ibest = which.max(estgrid$loglike)
+  tempest = est
+  tempest$parguess = estgrid[ibest, ] %>% select(-loglike)
+  estfinal = one_estimate(tempest,tabspub,opts)
+  
+  # pack up and output
+  out = list(
+    grid = estgrid
+    , est = estfinal
+  )
+  return = out
+  
+} # end grid_estimate
+
+
+# calculate t-hurdle from model
+find_hurdle = function(par){
+  hlist = seq(0,5,0.01)
+  
+  t.o =UnivarMixingDistribution(
+    Norm(0,1), create_mutrue_object(par) + Norm(0,1)
+    , mixCoeff = c(par$pif, 1-par$pif)
+  ) 
+  
+  fdrdat = tibble(
+    h = hlist
+    , prob_h_f = 2*pnorm(-hlist)
+    , prob_h = 1-p(t.o)(hlist)
+    , fdr_h = prob_h_f/prob_h*par$pif
+  )    
+  
+  hstar = fdrdat %>% filter(fdr_h <= 0.05) %>% summarize(hstar = min(h)) %>% pull(hstar)
+  
+  return = hstar
+  
+} # end find_hurdle
