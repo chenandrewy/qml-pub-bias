@@ -22,6 +22,14 @@ library(ggplot2)
 library(gridExtra)
 dir.create('temp/')
 
+# root of April 2021 release on Gdrive
+pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
+
+# trigger login
+target_dribble = pathRelease %>% drive_ls() 
+
+
+# FUNCTIONS ====
 # translate par0$true* into a distr object
 #   must be a less ugly way to do this but I dunno what it is
 #   to find a list of distributions, use ??distr or see page 7 of long manual (distribution classes)
@@ -41,6 +49,9 @@ create_mutrue_object = function(par){
   } else if (par$truefam == 'foldedt'){
     
     str.o = 'abs(par$truepar1 + par$truepar2*Td(par$truepar3))'
+    
+  } else if (par$truefam == 'exp'){
+    str.o = 'Exp(1/par$truepar1)'
   }
   
   return = eval(parse(text = str.o))
@@ -60,7 +71,16 @@ prob_pub = function(tt,par){
     # this family may be required if mutrue is student's t
     prob = 1/(1+exp(-par$tslope*(tt-par$tmid)))
     
+  } else if (par$pubfam == 'stair'){
+    # does not work
+    prob = (tt > 1.96 & tt <= 2.58)*par$tslope +(tt>2.58)*1
+    # prob = (tt > 1.96)*1
+    
+  } else if (par$pubfam == 'trunc'){
+    prob = 1*(tt > par$tmid)
+    
   } # end if par$pubfam
+  
   
 } # end prob_pub
 
@@ -78,11 +98,18 @@ par2observed = function(par){
   
   #   3) condition on publication
   # doc here: https://www.rdocumentation.org/packages/distr/versions/2.8.0/topics/AbscontDistribution
-  tabspub.o = AbscontDistribution(
-    d=function(tt) d(tabs.o)(tt)*prob_pub(tt,par)
-    , withStand = 1
-    , low = 0
-  )
+  
+  if (par$pubfam != 'trunc'){
+    tabspub.o = AbscontDistribution(
+      d=function(tt) d(tabs.o)(tt)*prob_pub(tt,par)
+      , withStand = 1
+      , low = par$tmin
+      , low1 = par$tmin
+    )
+    
+  } else {
+    tabspub.o = Truncate(tabs.o, lower = par$tmid)
+  } # if par$pubfam 
   
   return = tabspub.o
   
@@ -103,7 +130,7 @@ parvec2par = function(parvec,parbase,namevec){
 # lower and upper boudns of search space
 parveclim = function(namevec){
   par.lb = data.frame(
-    pif = 0, truepar1 = 0, truepar2 = 0, truepar3 = 0, tmid = 0, tslope = 0
+    pif = 0.001, truepar1 = 0, truepar2 = 0, truepar3 = 0, tmid = 0, tslope = 0
   )
   par.ub = data.frame(
     pif = 1, truepar1 = 100, truepar2 = 100, truepar3 = 100, tmid = 3, tslope = 100
@@ -245,3 +272,42 @@ find_hurdle = function(par){
   return = hstar
   
 } # end find_hurdle
+
+plot_emp_vs_mod = function(mod,emptabs){
+  
+  edge = c(seq(0,15,1), 40)
+  freq = numeric(length(edge)-1)
+  for (i in 2:length(edge)){
+    a = edge[i-1]; b = edge[i]
+    freq[i-1] = p(mod)(b) - p(mod)(a)
+  }
+  
+  hemp = hist(emptabs, edge, plot = F)
+  
+  plotme = tibble(
+    group = 'emp', tabs = hemp$mids, freq = hemp$density
+  ) %>% rbind(
+    tibble(
+      group = 'mod', tabs = hemp$mids, freq = freq    
+    )
+  )
+  
+  stat = plotme %>% 
+    pivot_wider(names_from = group, values_from = freq) %>% 
+    mutate(
+      error = 1000*(mod - emp)
+    ) 
+  
+  print(stat)
+  print(mean(abs(stat$error)))
+  
+  plotme %>% 
+    ggplot(aes(x=tabs,y=freq,group=group,color=group)) +
+    geom_line() +
+    geom_point(size=3) +
+    theme_minimal() +
+    scale_color_manual(values = c('blue','red')) + 
+    theme(legend.position = c(8,8)/10) +
+    xlim(0,15)  
+  
+} # end plot_emp_vs_mod

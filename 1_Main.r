@@ -1,19 +1,16 @@
+rm(list = ls())
+
+# ENVIRONMENT  ====
+
 source('0_Environment.r')
 
-# BOOTSTRAP LIMITS ====
-
+# bootstrap timing for reference
 avail_hours = 12
 nboot_wanted = 1000
-
 min_per_boot = 12*60/nboot_wanted
-
 min_per_boot
 
-
 # DOWNLOAD DATA, MAKE PUBCROSS ====
-
-# root of April 2021 release on Gdrive
-pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
 
 # download signal documentation 
 target_dribble = pathRelease %>% drive_ls() %>% 
@@ -69,31 +66,44 @@ pubcross = ret %>%
     tstat = rbar/vol*sqrt(ndate), tabs = abs(tstat)
   )
 
+# filter 
+#   remove 24 tabs < 1.96.  Modeling these doesn't pass cost / benefit
+pubcross = pubcross %>% filter(tabs > 1.96)
 
-# FIND INITIAL GUESS BY HAND ====
+
+
+# SET BASELINE BY HAND ====
+
+source('0_Environment.r')
 # lognorm: (2, 2, NA) fits well
 # foldedt: (0, 0.5/0.2, 5) fits well
+# exp (2, NA, NA)
 
 # model parameters
 par.hand = data.frame(
   pif = 0.4
-  , truefam  = 'lognorm' # 'norm' or 'lognorm' or 'foldedt'
+  , truefam  = 'exp' # 'norm' or 'lognorm' or 'foldedt'
   , truepar1 = 2
-  , truepar2 = 2
+  , truepar2 = NA
   , truepar3 = NA
-  , pubfam  = 'logistic' # 'piecelin' or 'logistic
-  , tmid    = 2 # prob of pub is 0.5 at the midpoint
-  , tslope  = 4
+  , pubfam  = 'logistic' # 'piecelin' or 'logistic' or 'stair' or 'trunc'
+  , tmid    = 2.25
+  , tslope  = 10
+  , tmin    = 1
 )
 
 # make model tabs | pub object
 tabspub.g.o = par2observed(par.hand)
 
 # plot
-plot_2hist(
-  pubcross$tabs, r(tabspub.g.o)(2e3), seq(0,15,0.5), 'emp', 'sim'
-)
+p1 = plot_emp_vs_mod(tabspub.g.o, pubcross$tabs)
+tt = seq(1,3,0.001)
+p3 = tibble(
+  tt = tt, prob = prob_pub(tt,par.hand)
+) %>% 
+  ggplot(aes(x=tt,y=prob)) + geom_line() +theme_minimal()
 
+grid.arrange(p1,p3, nrow = 1)
 
 
 # ONE ESTIMATE ====
@@ -103,8 +113,8 @@ source('0_Environment.r')
 
 # estimation settings
 est.point = list(
-  parguess = par.hand %>% mutate(pif = 0.6)
-  , namevec = c('pif', 'truepar1','truepar2') # names of parameters to estimate  
+  parguess = par.hand %>% mutate(pif = 0.3)
+  , namevec = c('pif', 'truepar1') # names of parameters to estimate  
 )
 
 # estimate
@@ -126,13 +136,16 @@ p2 = tibble(mu = r(mu)(1e3)) %>%
   ) + 
   geom_histogram(aes(y=stat(density)))
 
+tt = seq(0,4,0.25)
+p3 = tibble(
+  tt = tt, prob = prob_pub(tt,est.point$par)
+) %>% 
+  ggplot(aes(x=tt,y=prob)) + geom_point()
 
-grid.arrange(p1,p2, nrow = 1)
+grid.arrange(p1,p2,p3, nrow = 1)
 
 # output to console
 est.point
-
-
 
 # GRID ESTIMATE ====
 
@@ -141,10 +154,10 @@ source('0_Environment.r')
 tic = Sys.time()
 
 # estimation settings
-est.point = list(
+est.grid = list(
   parguess = par.hand
-  , namevec = c('pif', 'truepar1','truepar2', 'tmid','tslope')  
-  , pifgrid = seq(0.05,0.95,0.05)
+  , namevec = c('pif', 'truepar1')
+  , pifgrid = c(0.001, seq(0.05,0.95,0.05))
 )
 
 tempopts = opts.base
@@ -153,37 +166,48 @@ tempopts$xtol_rel = 0.0001
 tempopts$ftol_rel = 0.001
 
 # estimate
-est.point =  pifgrid_estimate(est.point, pubcross$tabs, tempopts)
+est.grid =  pifgrid_estimate(est.grid, pubcross$tabs, tempopts)
 
-# plot ====
-tabspub.o = par2observed(est.point$est$par)
+# plot 
+tabspub.o = par2observed(est.grid$est$par)
 p1 = plot_2hist(
   pubcross$tabs, r(tabspub.o)(1e3), seq(0,18,1), 'data', 'model'
 )
 
-mu = create_mutrue_object(est.point$est$par)
+mu = create_mutrue_object(est.grid$est$par)
 p2 = tibble(mu = r(mu)(1e3)) %>%
   ggplot(
     aes(x=mu)
   ) +
   geom_histogram(aes(y=stat(density)))
 
-p3 = est.point$grid %>% ggplot(aes(x=pif,y=loglike)) + geom_point()
+p3 = est.grid$grid %>% ggplot(aes(x=pif,y=loglike)) + geom_point()
 
 tt = seq(0,4,0.25)
 p4 = tibble(
-  tt = tt, prob = prob_pub(tt,est.point$est$par)
+  tt = tt, prob = prob_pub(tt,est.grid$est$par)
 ) %>% 
   ggplot(aes(x=tt,y=prob)) + geom_point()
 
 grid.arrange(p1,p2,p3,p4, nrow = 2)
 
 # output to console
-est.point
+est.grid
 
 toc = Sys.time()
 
 toc - tic
+
+# test plots ====
+
+# plot point estimate
+tempmod = par2observed(est.grid$est$par)
+plot_emp_vs_mod(tempmod, pubcross$tabs)
+
+# plot pif = 0.30 estimate
+temppar = est.grid$grid %>% filter(pif == 0.3)
+plot_emp_vs_mod(par2observed(temppar), pubcross$tabs)
+
 
 # BOOTSTRAP ====
 nboot = 100
@@ -197,7 +221,7 @@ id_all = matrix(
 # estimation settings: use point estimate as initial guess
 est.boot = list(
   parguess = par.hand
-  , namevec = c('pif', 'truepar1','truepar2','tmid','tslope')  
+  , namevec = c('pif', 'truepar1')  
   , pifgrid = seq(0.05,0.95,0.05)
 )
 
