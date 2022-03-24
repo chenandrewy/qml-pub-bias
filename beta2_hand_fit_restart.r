@@ -71,20 +71,36 @@ pubcross = ret %>%
 
 # filter 
 #   remove 24 tabs < 1.96.  Modeling these doesn't pass cost / benefit
-emp = pubcross %>% filter(tabs > 1.96)
+pubcross = pubcross %>% filter(tabs > 1.96)
 
 
 # testing: flexible qml fit stair w/ general triple mix normal  ====
 
+# bootstrap or not
+nport = nrow(pubcross)
+id = 1:nport # no boot
+id = sample(1:nport, nport, replace = T) # boot
+samp = pubcross[id,]
+
+hist(samp$tabs)
+
+# opts
+opts = list(
+  algorithm = 'NLOPT_GN_CRS2_LM' # 'NLOPT_LN_BOBYQA' or 'NLOPT_GN_DIRECT_L' or 'NLOPT_GN_CRS2_LM'
+  , xtol_rel = 0.001
+  , print_level = 3
+  , maxeval = 1000
+)
+
 # model parameters
 par.guess = data.frame(
-  pif = 0.5, pia = 0.75, mua = 2, siga = 0.001, mub = 5, sigb = 0.001
+  pif = 0.1, pia = 0.25, mua = 2, siga = 0.1, mub = 5, sigb = 2
 )
 par.lb = data.frame(
-  pif = 0.01, pia = 0.01, mua = 0.01, siga = 0.001, mub = 0.01, sigb = 0.001
+  pif = 0.001, pia = 0.001, mua = 0.5, siga = 0.001, mub = 1, sigb = 0.0001
 )
 par.ub = data.frame(
-  pif = 0.99, pia = 0.99, mua = 20, siga = 20, mub = 20, sigb = 20
+  pif = 0.99, pia = 0.99, mua = 4, siga = 10, mub = 10, sigb = 10
 )
 
 # function: translate par df to parvec vector form
@@ -124,33 +140,28 @@ negloglike = function(parvec){
   tabs.o = make_t.o(par)
 
   # observable
+  #   take on data
+  tt = samp$tabs
+  
+  #   find single likelihoods
   denom = tslope*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
-
-  # take on data
-  tt = pubcross$tabs
-
   onelikes = d(tabs.o)(tt)*prob_pub(tt)/denom
+  
   onelikes[onelikes<=0] = 1e-6
   return = -1*mean(log(onelikes))
 
 } # end f_obs
 
 
-
-
-# estimate!
-namevec = c('pif','pia','mua','mub','siga','sigb')
+## estimate! ====
+namevec = c('pif', 'pia','mua','mub','siga','sigb')
 
 opt = nloptr(
   x0 = par2parvec(par.guess, namevec)
   , lb = par2parvec(par.lb, namevec)
   , ub = par2parvec(par.ub, namevec)
   , eval_f = negloglike
-  , opts = list(
-    algorithm = 'NLOPT_LN_BOBYQA'
-    , xtol_rel = 0.001
-    , print_level = 3
-  )
+  , opts = opts
 )
 parvec.hat = opt$solution
 par.hat = parvec2par(parvec.hat,par.guess,namevec)
@@ -204,17 +215,4 @@ plotme %>%
 
 par
 
-# debug ====
-
-# ez integrate
-tabs.o = make_t.o(par)
-denom = tslope*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
-f_obs = function(tt) d(tabs.o)(tt)*prob_pub(tt)/denom
-
-a = 2; b = 3
-integrate(f_obs, a, b)$value
-
-# the hard way
-(p(tabs.o)(2.6) - p(tabs.o)(2))*prob_pub(2.5)
-
-
+opt$objective
