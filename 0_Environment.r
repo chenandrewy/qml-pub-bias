@@ -113,38 +113,66 @@ parvec2par = function(parvec,parbase,namevec){
   return(par)
 } # end parvec2par
 
-# selection (assumed)
-prob_pub = function(tt, par){
-  (tt > 1.96 & tt <= 2.60)*par$tslope + (tt > 2.6)   
-}
+# prob of publication
+pub_prob = function(tt,par){
+  
+  if (par$pubfam == 'piecelin'){
+    
+    prob = 0.5 + par$pubpar2*(tt-par$pubpar1)
+    prob[prob<0] = 0; prob[prob>1] = 1
+    return = prob    
+    
+  } else if (par$pubfam == 'logistic'){
+    
+    # this family may be required if mutrue is student's t
+    prob = 1/(1+exp(-par$pubpar2*(tt-par$pubpar1)))
+    
+  } else if (par$pubfam == 'stair'){
+    # does not work
+    prob = (tt > 1.96 & tt <= 2.58)*par$pubpar2 +(tt>2.58)*1
+    # prob = (tt > 1.96)*1
+    
+  } else if (par$pubfam == 'trunc'){
+    prob = 1*(tt > par$pubpar1)
+    
+  } # end if par$pubfam
+  
+  
+} # end pub_prob
 
-# latent t-stats
-make_t.o = function(par){
+
+
+
+make_single_likes = function(tt,par){
+  
+  # latent density
   t.o = UnivarMixingDistribution(
     Norm(0,1), Norm(par$mua,sqrt(par$siga^2+1)), Norm(par$mub,sqrt(par$sigb^2+1))
     , mixCoeff = c(par$pif, (1-par$pif)*par$pia, (1-par$pif)*(1-par$pia))
   )
   tabs.o = abs(t.o)
-  return = tabs.o
-}
+  
+  # observed density
+  #   find denominator for conditional density
+  # denom = par$pubpar2*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
+  denom = integrate(
+    function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, Inf
+  )$value
+  return = d(tabs.o)(tt)*pub_prob(tt,par)/denom
+  
+} # individual likes
+
 
 
 # likelihood
 negloglike = function(parvec){
+  # setup
   par = parvec2par(parvec,par.guess,namevec)
   
-  # latent
-  tabs.o = make_t.o(par)
+  # individual likes
+  singlelikes =  make_single_likes(samp$tabs, par)
   
-  # observable
-  #   take on data
-  tt = samp$tabs
-  
-  #   find single likelihoods
-  denom = par$tslope*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
-  onelikes = d(tabs.o)(tt)*prob_pub(tt,par)/denom
-  
-  onelikes[onelikes<=0] = 1e-6
-  return = -1*mean(log(onelikes))
+  singlelikes[singlelikes<=0] = 1e-6
+  return = -1*mean(log(singlelikes))
   
 } # end f_obs

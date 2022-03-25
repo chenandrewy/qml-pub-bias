@@ -10,7 +10,7 @@ nboot_wanted = 1000
 min_per_boot = 12*60/nboot_wanted
 min_per_boot
 
-# DOWNLOAD DATA, MAKE PUBCROSS ====
+# IMPORT PUBCROSS ====
 
 pubcross = import_cz(dl = F)
 
@@ -28,7 +28,9 @@ par.guess = data.frame(
   , siga = 0.1
   , mub = 5
   , sigb = 2
-  , tslope = 0.5
+  , pubfam = 'stair' # 'stair' or 'piecelin'
+  , pubpar1 = NA
+  , pubpar2 = 0.75
 )
 par.lb = data.frame(
   pif = 0.001
@@ -37,7 +39,8 @@ par.lb = data.frame(
   , siga = 0.001
   , mub = 1
   , sigb = 0.0001
-  , tslope = 0.3
+  , pubpar1 = NA
+  , pubpar2 = 0.3
 )
 par.ub = data.frame(
   pif = 0.99
@@ -46,12 +49,23 @@ par.ub = data.frame(
   , siga = 10
   , mub = 10
   , sigb = 10
-  , tslope = 1
+  , pubpar1 = NA  
+  , pubpar2 = 1
 )
+
+## check pub_prob ====
+tt = seq(1,3,0.001)
+tibble(
+  tt = tt, prob = pub_prob(tt,par.guess)
+) %>% 
+  ggplot(aes(x=tt,y=prob)) + geom_line() +theme_minimal()
+
+
+## ====
 
 
 # parameters to estimate
-namevec = c('pif', 'pia','mua','mub','siga','sigb')
+namevec = c('pif', 'pia','mua','mub','siga','sigb','pubpar2')
 
 # test objective
 negloglike(par2parvec(par.guess,namevec))
@@ -61,7 +75,7 @@ opts = list(
   algorithm = 'NLOPT_GN_CRS2_LM' # 'NLOPT_LN_BOBYQA' or 'NLOPT_GN_DIRECT_L' or 'NLOPT_GN_CRS2_LM'
   , xtol_rel = 0.001
   , print_level = 3
-  , maxeval = 100
+  , maxeval = 1000
 )
 
 opt = nloptr(
@@ -77,12 +91,11 @@ par.hat = parvec2par(parvec.hat,par.guess,namevec)
 ## plot result ====
 par = par.hat
 
-# latent 
-tabs.o = make_t.o(par)
 
 # observable
-denom = par$tslope*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
-f_obs = function(tt) d(tabs.o)(tt)*prob_pub(tt,par)/denom
+f_obs = function(tt){
+  make_single_likes(tt,par)
+}
 
 # setup
 edge = c(seq(0,15,1), 40)
