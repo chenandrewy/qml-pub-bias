@@ -14,11 +14,23 @@ min_per_boot
 
 pubcross = import_cz(dl = F)
 
-# ESTIMATE ====
+# ESTIMATION SETUP ====
 
 # filter 
 #   remove 24 tabs < 1.96.  Modeling these may not pass cost / benefit
 samp = pubcross %>% filter(tabs > 1.96)
+
+# bootstrap
+nboot = 100
+nsignal = nrow(samp)
+
+# predraw indexes
+set.seed(833)
+id_all = matrix(
+  sample(1:nsignal, size = nsignal*nboot, replace = T), nrow = nsignal 
+)
+id_all[,1] = 1:nsignal # fix first column is always the empirical data
+
 
 # model parameters
 par.guess = data.frame(
@@ -53,87 +65,69 @@ par.ub = data.frame(
   , pubpar2 = 1
 )
 
-## check pub_prob ====
+
+# parameters to estimate
+namevec = c('pif', 'pia','mua','mub','siga','sigb','pubpar2')
+
+
+# opts
+opts = list(
+  algorithm = 'NLOPT_GN_CRS2_LM' # 'NLOPT_LN_BOBYQA' or 'NLOPT_GN_DIRECT_L' or 'NLOPT_GN_CRS2_LM'
+  , xtol_rel = 0.001
+  , print_level = 0
+  , maxeval = 20
+)
+
+## checks ====
+
+# test objective
+negloglike(par2parvec(par.guess,namevec))
+
+# check pub prob
 tt = seq(1,3,0.001)
 tibble(
   tt = tt, prob = pub_prob(tt,par.guess)
 ) %>% 
   ggplot(aes(x=tt,y=prob)) + geom_line() +theme_minimal()
 
+# add more later
+namevec
 
-## ====
-
-
-# parameters to estimate
-namevec = c('pif', 'pia','mua','mub','siga','sigb','pubpar2')
-
-# test objective
-negloglike(par2parvec(par.guess,namevec))
-
-# opts
-opts = list(
-  algorithm = 'NLOPT_GN_CRS2_LM' # 'NLOPT_LN_BOBYQA' or 'NLOPT_GN_DIRECT_L' or 'NLOPT_GN_CRS2_LM'
-  , xtol_rel = 0.001
-  , print_level = 3
-  , maxeval = 1000
-)
-
-opt = nloptr(
-  x0 = par2parvec(par.guess, namevec)
-  , lb = par2parvec(par.lb, namevec)
-  , ub = par2parvec(par.ub, namevec)
-  , eval_f = negloglike
-  , opts = opts
-)
-parvec.hat = opt$solution
-par.hat = parvec2par(parvec.hat,par.guess,namevec)
-
-## plot result ====
-par = par.hat
+opts
 
 
-# observable
-f_obs = function(tt){
-  make_single_likes(tt,par)
-}
+# ESTIMATE ====
 
-# setup
-edge = c(seq(0,15,1), 40)
-freq = numeric(length(edge)-1)
-for (i in 2:length(edge)){
-  a = edge[i-1]; b = edge[i]
-  freq[i-1] = integrate(f_obs, a, b)$value
-}
-
-hemp = hist(pubcross$tabs, edge, plot = F)
-
-plotme = tibble(
-  group = 'emp', tabs = hemp$mids, freq = hemp$density
-) %>% rbind(
-  tibble(
-    group = 'mod', tabs = hemp$mids, freq = freq    
+for (booti in 1:nboot){
+  
+  # optimize
+  opt = nloptr(
+    x0 = par2parvec(par.guess, namevec)
+    , lb = par2parvec(par.lb, namevec)
+    , ub = par2parvec(par.ub, namevec)
+    , eval_f = negloglike
+    , opts = opts
   )
-) %>% 
-  filter(!is.na(freq))
+  
+  # store
+  parvec.hat = opt$solution
+  est = parvec2par(parvec.hat,par.guess,namevec)
+  est$loglike = -1*opt$objective
+  
+  if (booti == 1){
+    bootdat = est
+  } else {
+    bootdat = rbind(bootdat,est)
+  } 
+  
+  # feedback
+  print(booti)
+  print(est)
+  
+  p1 = bootdat %>% ggplot(aes(x=pif)) + geom_histogram() + theme_minimal()
+  p2 = hist_emp_vs_par(est)
+  
+  grid.arrange(p1,p2,nrow = 1)
 
-stat = plotme %>% 
-  pivot_wider(names_from = group, values_from = freq) %>% 
-  mutate(
-    error = 1000*(mod - emp)
-  ) 
+} # for booti
 
-print(stat)
-print(mean(abs(stat$error)))
-
-plotme %>% 
-  ggplot(aes(x=tabs,y=freq,group=group,color=group)) +
-  geom_line() +
-  geom_point(size=3) +
-  theme_minimal() +
-  scale_color_manual(values = c('blue','red')) + 
-  theme(legend.position = c(0.8,0.8)) +
-  xlim(0,15)  
-
-par
-
-opt$objective
