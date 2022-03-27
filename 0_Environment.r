@@ -26,7 +26,7 @@ dir.create('temp/')
 pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
 
 # trigger login
-target_dribble = pathRelease %>% drive_ls() 
+# target_dribble = pathRelease %>% drive_ls() 
 
 
 # GLOBAL VARIABLS ====
@@ -165,9 +165,10 @@ make_single_likes = function(tt,par){
 
 
 # likelihood
+#   important: par.base is a global
 negloglike = function(parvec){
   # setup
-  par = parvec2par(parvec,par.guess,namevec)
+  par = parvec2par(parvec,par.base,namevec)
   
   # individual likes
   singlelikes =  make_single_likes(samp$tabs, par)
