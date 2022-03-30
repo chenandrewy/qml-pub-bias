@@ -43,7 +43,7 @@ par.base = data.frame(
   , sigb = 2
   , pubfam = 'stair' # 'stair' or 'piecelin'  
   , pubpar1 = NA
-  , pubpar2 = 2/3
+  , pubpar2 = 1/2
 )
 par.lb = data.frame(
   pif = 0.001
@@ -65,7 +65,7 @@ par.ub = data.frame(
   , sigb = 10
   , pubfam = 'stair' # 'stair' or 'piecelin'  
   , pubpar1 = NA  
-  , pubpar2 = 1/2
+  , pubpar2 = 1
 )
 
 
@@ -159,43 +159,3 @@ for (booti in 1:nboot){
 
 } # for booti
 
-# BETA: FIND HURDLES ====
-
-booti = 1
-for (booti in 1:nrow(bootdat)){
-
-  par = bootdat[booti,]
-  
-  # latent density
-  t.o = UnivarMixingDistribution(
-    Norm(0,1), Norm(par$mua,sqrt(par$siga^2+1)), Norm(par$mub,sqrt(par$sigb^2+1))
-    , mixCoeff = c(par$pif, (1-par$pif)*par$pia, (1-par$pif)*(1-par$pia))
-  )
-  tabs.o = abs(t.o)
-
-  f_obs = function(tt) d(tabs.o)(tt)*pub_prob(tt,par)/denom
-  
-  tlist = seq(0,5,0.1)
-  fdr = 100 + numeric(length(tlist))
-  for (ti in 1:length(tlist)){
-    tt = tlist[ti]
-    pr_discovery_false = 2*pnorm(-tt)
-    pr_discovery = integrate(function(ttt) d(tabs.o)(ttt), tt, Inf)$value
-    fdr[ti] =  pr_discovery_false/pr_discovery*par$pif*100
-  } # end for ti
-  
-  hurdle = tlist[which(fdr < 5)[1]]
-  stat = tibble(booti = booti, hurdle = hurdle )
-  
-  if (booti == 1){
-    bootstat = stat
-  } else{
-    bootstat = rbind(bootstat,stat)
-  }
-  
-  print(booti)
-  
-} # for booti
-
-
-hist(bootstat$hurdle)

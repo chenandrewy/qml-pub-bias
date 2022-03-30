@@ -20,7 +20,7 @@ opts.base = list(
 library(distr) 
 library(ggplot2)
 library(gridExtra)
-dir.create('temp/')
+dir.create('intermediate/', showWarnings = F)
 
 # root of April 2021 release on Gdrive
 pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
@@ -41,11 +41,11 @@ import_cz = function(dl = F){
     target_dribble = pathRelease %>% drive_ls() %>% 
       filter(name=='SignalDocumentation.xlsx')
     
-    drive_download(target_dribble, path = 'temp/deleteme.xlsx', overwrite = T)
+    drive_download(target_dribble, path = 'intermediate/deleteme.xlsx', overwrite = T)
     
     signaldoc = left_join(
-      read_excel('temp/deleteme.xlsx',sheet = 'BasicInfo')  
-      , read_excel('temp/deleteme.xlsx',sheet = 'AddInfo')
+      read_excel('intermediate/deleteme.xlsx',sheet = 'BasicInfo')  
+      , read_excel('intermediate/deleteme.xlsx',sheet = 'AddInfo')
     ) %>% 
       mutate(
         signalname = Acronym
@@ -62,9 +62,9 @@ import_cz = function(dl = F){
       filter(name=='Full Sets OP') %>% drive_ls() %>%
       filter(name=='PredictorLSretWide.csv')
     
-    drive_download(target_dribble[1,], path = 'temp/deleteme2.csv', overwrite = T)
+    drive_download(target_dribble[1,], path = 'intermediate/deleteme2.csv', overwrite = T)
     
-    ret = fread('temp/deleteme2.csv') %>% 
+    ret = fread('intermediate/deleteme2.csv') %>% 
       pivot_longer(
         -date, names_to = 'signalname', values_to = 'ret'
       ) %>% 
@@ -91,11 +91,11 @@ import_cz = function(dl = F){
         tstat = rbar/vol*sqrt(ndate), tabs = abs(tstat)
       )
     
-    save(pubcross, file = 'temp/pubcross.Rdata')
+    save(pubcross, file = 'intermediate/pubcross.Rdata')
     
   } # if dl 
     
-  load(file = 'temp/pubcross.Rdata') # loads pubcross
+  load(file = 'intermediate/pubcross.Rdata') # loads pubcross
   
   return = pubcross
   
