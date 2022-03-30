@@ -91,11 +91,11 @@ import_cz = function(dl = F){
         tstat = rbar/vol*sqrt(ndate), tabs = abs(tstat)
       )
     
-    save(pubcross, file = 'intermediate/pubcross.Rdata')
+    write.csv(x = pubcross, file = 'exhibits/pubcross.csv', row.names = F)
     
   } # if dl 
     
-  load(file = 'intermediate/pubcross.Rdata') # loads pubcross
+  pubcross = fread('exhibits/pubcross.csv') # loads pubcross
   
   return = pubcross
   

@@ -2,7 +2,7 @@
 
 source('0_Environment.r')
 
-load(file = 'intermediate/pubcross.Rdata') # loads pubcross
+pubcross = fread('exhibits/pubcross.csv') 
 bootall = fread('exhibits/bootall.csv')
 
 # PLOT SKETCHES ====

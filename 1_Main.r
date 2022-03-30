@@ -12,7 +12,7 @@ min_per_boot
 
 # IMPORT PUBCROSS ====
 
-pubcross = import_cz(dl = F)
+pubcross = import_cz(dl = T)
 
 # ESTIMATION SETUP ====
 
