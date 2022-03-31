@@ -12,9 +12,12 @@ min_per_boot
 
 # IMPORT PUBCROSS ====
 
-pubcross = import_cz(dl = T)
+pubcross = import_cz(dl = F)
 
 # ESTIMATION SETUP ====
+
+# name for documentation
+bootname = 'benchmark-rerun'
 
 # filter 
 #   remove 24 tabs < 1.96.  Modeling these may not pass cost / benefit
@@ -65,7 +68,7 @@ par.ub = data.frame(
   , sigb = 10
   , pubfam = 'stair' # 'stair' or 'piecelin'  
   , pubpar1 = NA  
-  , pubpar2 = 1
+  , pubpar2 = 2/3
 )
 
 
@@ -151,9 +154,9 @@ for (booti in 1:nboot){
   
   # store
   if (booti%%100 == 0){
-    filename = paste0('bootdat started ', start_time)
+    filename = paste0('bootdat ', bootname, ' started ', start_time)
     filename = gsub('[:]', '-', filename)
-    save.image(paste0('output/', filename, '.Rdata'))
+    save.image(paste0('intermediate/', filename, '.Rdata'))
   } # if booti
   
 

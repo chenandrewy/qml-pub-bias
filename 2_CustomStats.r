@@ -2,9 +2,16 @@
 
 source('0_Environment.r')
 
-# load('intermediate/bootdat started 2022-03-27 00-27-22.Rdata') # pif in 0.33,1.0, inc
-# load('intermediate/bootdat started 2022-03-26 18-23-40.Rdata') # pif in 0.33,0.5, inc
+
+
 load('intermediate/bootdat started 2022-03-25 16-09-49 pif in 0.33 0.67.Rdata') # BENCHMARK
+# load('intermediate/bootdat started 2022-03-26 13-33-37.Rdata')
+
+par.base
+par.lb
+par.ub
+opts
+
 
 
 # CREATE BOOTSTAT (find custom stats) ====
