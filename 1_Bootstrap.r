@@ -153,7 +153,7 @@ for (booti in 1:nboot){
   grid.arrange(p1,p2,nrow = 1)
   
   # store
-  if (booti%%1 == 0){
+  if (booti%%100 == 0){
     filename = paste0('bootdat ', bootname, ' started ', start_time)
     filename = gsub('[:]', '-', filename)
     save.image(paste0('intermediate/', filename, '.Rdata'))
