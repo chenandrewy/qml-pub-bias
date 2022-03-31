@@ -20,7 +20,9 @@ opts.base = list(
 library(distr) 
 library(ggplot2)
 library(gridExtra)
+
 dir.create('intermediate/', showWarnings = F)
+dir.create('exhibits/', showWarnings = F)
 
 # root of April 2021 release on Gdrive
 pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
