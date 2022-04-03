@@ -6,18 +6,7 @@ library(data.table)
 library(googledrive)
 library(readxl)
 library(writexl)
-
-# for estimation
-# 'algorithm'='NLOPT_LN_COBYLA' or 'NLOPT_LN_BOBYQA'
-
 library(nloptr)
-opts.base = list(
-  'algorithm'='NLOPT_LN_BOBYQA'
-  , 'xtol_rel' = 1e-2
-  , 'ftol_rel' = 1e-1
-  , print_level = 3 # 0, 1, 2, 3
-  , maxtime = 20
-)
 library(distr) 
 library(ggplot2)
 library(gridExtra)
@@ -27,9 +16,6 @@ dir.create('output/', showWarnings = F)
 
 # root of March 2022 
 pathRelease = 'https://drive.google.com/drive/folders/1O18scg9iBTiBaDiQFhoGxdn4FdsbMqGo'
-
-
-# GLOBAL VARIABLS ====
 
 
 # FUNCTIONS ====
@@ -139,8 +125,6 @@ pub_prob = function(tt,par){
 } # end pub_prob
 
 
-
-
 make_single_likes = function(tt,par){
   
   # latent density
@@ -152,7 +136,6 @@ make_single_likes = function(tt,par){
   
   # observed density
   #   find denominator for conditional density
-  # denom = par$pubpar2*(p(tabs.o)(2.6)-p(tabs.o)(1.96)) + (1-p(tabs.o)(2.6))
   denom = integrate(
     function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, Inf
   )$value
@@ -161,24 +144,7 @@ make_single_likes = function(tt,par){
 } # individual likes
 
 
-
-# likelihood
-#   important: par.base is a global
-negloglike = function(parvec){
-  # setup
-  par = parvec2par(parvec,par.base,namevec)
-  
-  # individual likes
-  singlelikes =  make_single_likes(samp$tabs, par)
-  
-  singlelikes[singlelikes<=0] = 1e-6
-  return = -1*mean(log(singlelikes))
-  
-} # end f_obs
-
-
-
-hist_emp_vs_par = function(par){
+hist_emp_vs_par = function(pubcross,par){
   
   # observable
   # this is slow

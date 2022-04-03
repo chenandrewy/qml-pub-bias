@@ -27,12 +27,13 @@ samp = pubcross %>% filter(tabs > 1.96)
 nboot = 1000 # use 1 to just estimate the point
 nsignal = nrow(samp)
 
-# opts
+# optimization settings
+#   see 9_SimEst for details
 opts = list(
-  algorithm = 'NLOPT_GN_CRS2_LM' # 'NLOPT_LN_BOBYQA' or 'NLOPT_GN_DIRECT_L' or 'NLOPT_GN_CRS2_LM'
+  algorithm = 'NLOPT_LN_BOBYQA' 
   , xtol_rel = 0.001
   , print_level = 0
-  , maxeval = 1000 # 1000 for full
+  , maxeval = 1000 
 )
 
 # model family
@@ -79,9 +80,6 @@ namevec = c('pif', 'pia','mua','mub','siga','sigb','pubpar2')
 
 ## checks (might want to add more later) ====
 
-# test objective
-test_loglike = negloglike(par2parvec(par.base,namevec)) %>% print()
-
 # check pub prob
 tt = seq(1,3,0.001)
 tibble(
@@ -89,11 +87,11 @@ tibble(
 ) %>% 
   ggplot(aes(x=tt,y=prob)) + geom_line() +theme_minimal()
 
-namevec
-opts
+print(namevec)
+print(opts)
 
 
-# ESTIMATE ====
+# BOOTSTRAP ====
 
 
 # predraw indexes
@@ -121,6 +119,25 @@ for (booti in 1:nboot){
   
   tic = Sys.time()
   
+  ## estimate one ====
+  bootsamp = samp[id_all[,booti], ]
+  
+  
+  # likelihood
+  #   important: par.base is a global, and so is bootsamp
+  negloglike = function(parvec){
+    # setup
+    par = parvec2par(parvec,par.base,namevec)
+    
+    # individual likes
+    singlelikes =  make_single_likes(bootsamp$tabs, par)
+    
+    singlelikes[singlelikes<=0] = 1e-6
+    return = -1*mean(log(singlelikes))
+    
+  } # end f_obs
+  
+  
   # optimize
   opt = nloptr(
     x0 = par2parvec(par.guess[booti,], namevec)
@@ -135,13 +152,24 @@ for (booti in 1:nboot){
   est = parvec2par(parvec.hat,par.base,namevec)
   est$loglike = -1*opt$objective
   
+  toc = Sys.time()
+  
+
+  # end estimate one ====
+  
+  # store
   if (booti == 1){
     bootdat = est
   } else {
     bootdat = rbind(bootdat,est)
   } 
   
-  toc = Sys.time()
+  if (booti%%100 == 0){
+    filename = paste0('bootdat ', bootname, ' started ', start_time)
+    filename = gsub('[:]', '-', filename)
+    filename = substr(filename, 1, nchar(filename)-3)
+    save.image(paste0('intermediate/', filename, '.Rdata'))
+  } # if booti
   
   # feedback
   print(paste0('booti = ', booti))
@@ -149,17 +177,9 @@ for (booti in 1:nboot){
   print(est)
   
   p1 = bootdat %>% ggplot(aes(x=pif)) + geom_histogram() + theme_minimal()
-  p2 = hist_emp_vs_par(est)
+  p2 = hist_emp_vs_par(samp,est)
   
-  grid.arrange(p1,p2,nrow = 1)
-  
-  # store
-  if (booti%%100 == 0){
-    filename = paste0('bootdat ', bootname, ' started ', start_time)
-    filename = gsub('[:]', '-', filename)
-    filename = substr(filename, 1, nchar(filename)-6)
-    save.image(paste0('intermediate/', filename, '.Rdata'))
-  } # if booti
+  grid.arrange(p1,p2,nrow = 1)  
   
 
 } # for booti
