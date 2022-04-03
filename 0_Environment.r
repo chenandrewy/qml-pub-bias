@@ -5,6 +5,7 @@ library(tidyverse)
 library(data.table)
 library(googledrive)
 library(readxl)
+library(writexl)
 
 # for estimation
 # 'algorithm'='NLOPT_LN_COBYLA' or 'NLOPT_LN_BOBYQA'
@@ -22,13 +23,10 @@ library(ggplot2)
 library(gridExtra)
 
 dir.create('intermediate/', showWarnings = F)
-dir.create('exhibits/', showWarnings = F)
+dir.create('output/', showWarnings = F)
 
-# root of April 2021 release on Gdrive
-pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTAkb9734R'
-
-# trigger login
-# target_dribble = pathRelease %>% drive_ls() 
+# root of March 2022 
+pathRelease = 'https://drive.google.com/drive/folders/1O18scg9iBTiBaDiQFhoGxdn4FdsbMqGo'
 
 
 # GLOBAL VARIABLS ====
@@ -39,16 +37,14 @@ pathRelease = 'https://drive.google.com/drive/folders/1I6nMmo8k_zGCcp9tUvmMedKTA
 import_cz = function(dl = F){
   
   if (dl) {
+    
     # download signal documentation 
     target_dribble = pathRelease %>% drive_ls() %>% 
-      filter(name=='SignalDocumentation.xlsx')
+      filter(name=='SignalDoc.csv')
     
-    drive_download(target_dribble, path = 'intermediate/deleteme.xlsx', overwrite = T)
+    drive_download(target_dribble, path = 'intermediate/deleteme.csv', overwrite = T)
     
-    signaldoc = left_join(
-      read_excel('intermediate/deleteme.xlsx',sheet = 'BasicInfo')  
-      , read_excel('intermediate/deleteme.xlsx',sheet = 'AddInfo')
-    ) %>% 
+    signaldoc = fread('intermediate/deleteme.csv') %>% 
       mutate(
         signalname = Acronym
         , pubdate = as.Date(paste0(Year, '-12-31'))
@@ -93,11 +89,11 @@ import_cz = function(dl = F){
         tstat = rbar/vol*sqrt(ndate), tabs = abs(tstat)
       )
     
-    write.csv(x = pubcross, file = 'exhibits/pubcross.csv', row.names = F)
+    write.csv(x = pubcross, file = 'output/pubcross.csv', row.names = F)
     
   } # if dl 
     
-  pubcross = fread('exhibits/pubcross.csv') # loads pubcross
+  pubcross = fread('output/pubcross.csv') # loads pubcross
   
   return = pubcross
   

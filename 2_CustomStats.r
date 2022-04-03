@@ -1,11 +1,14 @@
+# 2022 03 converts parameters saved in bootdat to some custom stats and then
+# saves to disk for use in 3_Exhibits.r
+
 # ENVIRONMENT ====
 
 source('0_Environment.r')
 
 
-
-load('intermediate/bootdat started 2022-03-25 16-09-49 pif in 0.33 0.67.Rdata') # BENCHMARK
-# load('intermediate/bootdat started 2022-03-26 13-33-37.Rdata')
+# load('intermediate/bootdat started 2022-03-25 16-09-49 pif in 0.33 0.67.Rdata') # first benchmark, restricted
+# load('intermediate/bootdat benchmark-rerun started 2022-04-01 15-28-20.Rdata') # benchmark with no restrictions
+load('intermediate/bootdat mu-lb-0.5 started 2022-04-02 14-41-32.Rdata')
 
 par.base
 par.lb
@@ -85,6 +88,6 @@ bootall = bootall %>%
     bootstat
   )
 
-# SAVE TO EXHIBITS/====
-dir.create('exhibits/', showWarnings = F)
-write.csv(x = bootall, file = 'exhibits/bootall.csv', row.names = F)
+# SAVE TO OUTPUT/====
+write.csv(x = bootall, file = 'output/bootall.csv', row.names = F)
+

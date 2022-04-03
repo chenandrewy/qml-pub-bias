@@ -12,12 +12,12 @@ min_per_boot
 
 # IMPORT PUBCROSS ====
 
-pubcross = import_cz(dl = T)
+pubcross = import_cz(dl = F)
 
 # ESTIMATION SETUP ====
 
 # name for documentation
-bootname = 'benchmark-rerun'
+bootname = 'mu-lb-0.5'
 
 # filter 
 #   remove 24 tabs < 1.96.  Modeling these may not pass cost / benefit
@@ -37,6 +37,7 @@ opts = list(
 
 # model family
 #   par.base is used in loglike for anything that isn't listed in namevec
+#   but the baseline lists everything in namevec so this doesn't matter
 par.base = data.frame(
   pif = 0.5
   , pia = 0.5
@@ -49,22 +50,22 @@ par.base = data.frame(
   , pubpar2 = 1/2
 )
 par.lb = data.frame(
-  pif = 0.001
+  pif   = 0.001
   , pia = 0.001
-  , mua = 0.5
+  , mua  = 0.5
   , siga = 0.001
-  , mub = 1
-  , sigb = 0.0001
+  , mub  = 0.5
+  , sigb = 0.001
   , pubfam = 'stair' # 'stair' or 'piecelin'  
   , pubpar1 = NA
   , pubpar2 = 1/3
 )
 par.ub = data.frame(
-  pif = 0.99
-  , pia = 0.99
-  , mua = 4
+  pif   = 0.999
+  , pia = 0.999
+  , mua  = 10
   , siga = 10
-  , mub = 10
+  , mub  = 10
   , sigb = 10
   , pubfam = 'stair' # 'stair' or 'piecelin'  
   , pubpar1 = NA  
@@ -156,6 +157,7 @@ for (booti in 1:nboot){
   if (booti%%100 == 0){
     filename = paste0('bootdat ', bootname, ' started ', start_time)
     filename = gsub('[:]', '-', filename)
+    filename = substr(filename, 1, nchar(filename)-6)
     save.image(paste0('intermediate/', filename, '.Rdata'))
   } # if booti
   
