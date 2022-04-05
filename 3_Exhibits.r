@@ -1,11 +1,16 @@
 # 2022 03 makes exhibits from bootall, the output of 2_CustomStats
-
+rm(list = ls())
 # ENVIRONMENT ====
 
-source('0_Environment.r')
+source('0_Settings.r')
 
 pubcross = fread('output/pubcross.csv') 
 bootall = fread('output/bootall.csv')
+
+# if (!exists('set.boot')){
+#   set.boot$model_fam = par.base %>% mutate(mufam = 'mix-norm')
+#   # bootall$model_fam$mufam = 'mix-norm'
+# }
 
 # TABLES ====
 
@@ -107,11 +112,12 @@ est.point = bootall %>%
   filter(booti == 1) %>% 
   pivot_wider(names_from = stat) %>% 
   mutate(
-    pubfam = 'stair'# ugly hack, i'm sorry
+    pubfam = set.boot$model_fam$pubfam[1]
+    , mufam = set.boot$model_fam$mufam[1]
   )
 
 # call function for plotting point estimate (in 0_Environment)
-hist_emp_vs_par(est.point)
+hist_emp_vs_par(samp$tabs,est.point)
 
 
 
