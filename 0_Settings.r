@@ -20,59 +20,6 @@ dir.create('output/', showWarnings = F)
 # root of March 2022 
 pathRelease = 'https://drive.google.com/drive/folders/1O18scg9iBTiBaDiQFhoGxdn4FdsbMqGo'
 
-## model families ====
-
-fam.mixnorm = data.frame(
-  desc = c('base','lb','ub')
-  , mufam = 'mix-norm'
-  , pubfam = 'stair' # 'stair' or 'piecelin'    
-  , pif     = c(0.5, 0.001, 0.999)
-  , pia  = c(0.7, 0.001, 0.999)
-  , mua  = c(3, 0.5    , 10)
-  , siga = c(3, 0.001, 10)
-  , mub  = c(6, 1.0    , 10)
-  , sigb = c(6, 0.001, 10)
-  , pubpar1 = c(NA, NA, NA)
-  , pubpar2 = c(1/2, 1/3, 2/3)
-) 
-
-
-fam.t = data.frame(
-  desc = c('base','lb','ub')
-  , mufam   = 't'
-  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
-  , pif     = c(0.05, 0.10, 0.95)
-  , mua     = c(3, 2.0, 10)
-  , siga    = c(3, 0.1, 10) # siga = 0.001 leads to integration errors
-  , nua     = c(100, 2.1, 100)
-  , pubpar1 = c(NA, NA, NA)
-  , pubpar2 = c(0.5,  1/3, 1)
-) 
-
-fam.lognorm = data.frame(
-  desc = c('base','lb','ub')
-  , mufam   = 'lognorm'
-  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
-  , pif     = c(0.5, 0.01, 0.99)
-  , mua     = c(3, -10, 10)
-  , siga    = c(3, 0.2, 10) # siga = 0.1 leads to integration errors
-  , pubpar1 = c(NA, NA, NA)
-  , pubpar2 = c(0.5,  1/3, 1)
-) 
-
-
-
-fam.lognormraw = data.frame(
-  desc = c('base','lb','ub')
-  , mufam   = 'lognormraw'
-  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
-  , pif     = c(0.5, 0.01, 0.99)
-  , mua     = c(3, -3, 3)
-  , siga    = c(3, 0.05, 3) 
-  , pubpar1 = c(NA, NA, NA)
-  , pubpar2 = c(0.5,  1/3, 2/3)
-) 
-
 ## NLOPT settings  ====
 
 opts.crs = function(
@@ -100,6 +47,21 @@ opts.qa = function(
   )
 } # end opts.qa
 
+## estimation setting examples ====
+temp.set = list(
+  opt_method = 'pif-grid' # 'two-stage' or 'crs-only' or 'pif-grid'
+  , opt_pif_grid_base = seq(0.00, 1.00, 0.10)
+  , opt_list = opts.qa(xtol_rel = 1e-3)
+  , model_fam = data.frame(
+    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
+    , pif     = c(NA, 0.01, 0.99)
+    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
+    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
+    , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'  
+    , pubpar1 = c(NA,  1/3, 2/3)
+    , row.names  = c('base','lb','ub')  
+  )  
+)
 
 # FUNCTIONS ====
 
@@ -134,10 +96,8 @@ pub_prob = function(tt,par){
     prob = 1/(1+exp(-par$pubpar2*(tt-par$pubpar1)))
     
   } else if (par$pubfam == 'stair'){
-    # does not work
-    prob = (tt > 1.96 & tt <= 2.58)*par$pubpar2 +(tt>2.58)*1
-    # prob = (tt > 1.96)*1
-    
+    prob = (tt > 1.96 & tt <= 2.58)*par$pubpar1 +(tt>2.58)*1
+
   } else if (par$pubfam == 'trunc'){
     prob = 1*(tt > par$pubpar1)
     
@@ -166,7 +126,7 @@ make_tabs_object = function(par){
     mutrue.o = tempscale*Td(df = par$nua) + par$mua
     
     t.o = UnivarMixingDistribution(
-      Norm(0,1), mutrue.o
+      Norm(0,1), mutrue.o + Norm(0,1)
       , mixCoeff = c(par$pif, (1-par$pif))
     )
     
@@ -181,14 +141,14 @@ make_tabs_object = function(par){
     mutrue.o = Lnorm(tempmu, tempsig)
     
     t.o = UnivarMixingDistribution(
-      Norm(0,1), mutrue.o
+      Norm(0,1), mutrue.o  + Norm(0,1)
       , mixCoeff = c(par$pif, (1-par$pif))
     )    
     
   } else if (par$mufam == 'lognormraw'){
     
     t.o = UnivarMixingDistribution(
-      Norm(0,1), Lnorm(par$mua, par$siga)
+      Norm(0,1), Lnorm(par$mua, par$siga)  + Norm(0,1)
       , mixCoeff = c(par$pif, (1-par$pif))
     )    
     
@@ -240,7 +200,7 @@ make_mutrue_object = function(par){
     
   } # end if par$mufam
   
-  Lnorm(par$mua, par$siga)
+  return = mutrue.o
   
 } # end make_tabs_object
 
@@ -269,14 +229,15 @@ random_guess = function(est.set, nguess, seed = NULL){
   set.seed(seed)
   
   # first replicate base n times
-  par.guess.all = est.set$model_fam %>% filter(desc == 'base') %>% select(-desc) 
+  par.guess.all = est.set$model_fam['base',]
   par.guess.all=  do.call("rbind", replicate(nguess, par.guess.all, simplify = FALSE))
   
   # then randomize est_names columns uniform between lb and ub
-  par.lb = est.set$model_fam %>% filter(desc == 'lb')  
-  par.ub = est.set$model_fam %>% filter(desc == 'ub')  
+  par.lb = est.set$model_fam['lb',]  
+  par.ub = est.set$model_fam['ub',]  
   
-  for (name in est.set$est_names){
+  est_names = est.set$model_fam['base', is.na(est.set$model_fam['base',])] %>% colnames
+  for (name in est_names){
     if (par.lb %>% pull(name) %>% is.numeric()){
       par.guess.all[[name]] = runif(nguess, par.lb %>% pull(name), par.ub %>% pull(name))
     } else {
@@ -292,79 +253,118 @@ random_guess = function(est.set, nguess, seed = NULL){
 estimate = function(est.set, tabs, par.guess, print_level = 0){
   # est.set$opt_method= 'two-stage' or 'crs-only' or 'pif-grid'
   
-  # optimization methods
+  # setup
+  est_names = est.set$model_fam['base', is.na(est.set$model_fam['base',])] %>% colnames
+
+  # === optimization methods ===
+  
+  ## two-stage ====
   if (est.set$opt_method == 'two-stage'){
+    
+    # grab options
+    if ('opts_list1' %in% names(est.set)){
+      temp.opts.stage1 = est.set$opts_list1
+    } else {
+      temp.opts.stage1 = opts.crs()
+    }
+    temp.opts.stage1$print_level = print_level
+    
+    if ('opts_list2' %in% names(est.set)){
+      temp.opts.stage2 = est.set$opts_list1
+    } else {
+      temp.opts.stage2 = opts.qa()
+    }
+    temp.opts.stage2$print_level = print_level    
+    
     
     # likelihood that gets optimized
     minme = function(parvec){
       
-      par = parvec2par(parvec,par.guess,est.set$est_names)
+      par = parvec2par(parvec,par.guess,est_names)
       return = negloglike(tabs, par)
       
     } # end minme
     
     # test likelihood at guess
-    parvecguess = par2parvec(par.guess,est.set$est_names)
+    parvecguess = par2parvec(par.guess,est_names)
     minme(parvecguess)    
     
     # optimize
     opt = nloptr(
-      x0 = par2parvec(par.guess, est.set$est_names)
-      , lb = par2parvec(est.set$model_fam %>% filter(desc == 'lb'), est.set$est_names)
-      , ub = par2parvec(est.set$model_fam %>% filter(desc == 'ub'), est.set$est_names)
+      x0 = par2parvec(par.guess, est_names)
+      , lb = par2parvec(est.set$model_fam['lb',], est_names)
+      , ub = par2parvec(est.set$model_fam['ub',], est_names)
       , eval_f = minme
-      , opts = opts.crs(print_level = print_level)
+      , opts = temp.opts.stage1
     )
     
     # optimize again 
     opt = nloptr(
       x0 = opt$solution
-      , lb = par2parvec(est.set$model_fam %>% filter(desc == 'lb'), est.set$est_names)
-      , ub = par2parvec(est.set$model_fam %>% filter(desc == 'ub'), est.set$est_names)
+      , lb = par2parvec(est.set$model_fam['lb',], est_names)
+      , ub = par2parvec(est.set$model_fam['ub',], est_names)
       , eval_f = minme
-      , opts = opts.qa(print_level = print_level)
+      , opts = temp.opts.stage2
     )
     
     
     # store
     parvec.hat = opt$solution
-    parhat = parvec2par(parvec.hat,par.guess,est.set$est_names)
+    parhat = parvec2par(parvec.hat,par.guess,est_names)
     
     
+    ## crs-only ====    
   } else if (est.set$opt_method == 'crs-only'){
     
     # likelihood that gets optimized
     minme = function(parvec){
       
-      par = parvec2par(parvec,par.guess,est.set$est_names)
+      par = parvec2par(parvec,par.guess,est_names)
       return = negloglike(tabs, par)
       
     } # end minme
     
     # test likelihood at guess
-    parvecguess = par2parvec(par.guess,est.set$est_names)
+    parvecguess = par2parvec(par.guess,est_names)
     minme(parvecguess)    
     
     opt = nloptr(
-      x0 = par2parvec(par.guess, est.set$est_names)
-      , lb = par2parvec(est.set$model_fam %>% filter(desc == 'lb'), est.set$est_names)
-      , ub = par2parvec(est.set$model_fam %>% filter(desc == 'ub'), est.set$est_names)
+      x0 = par2parvec(par.guess, est_names)
+      , lb = par2parvec(est.set$model_fam['lb',], est_names)
+      , ub = par2parvec(est.set$model_fam['ub',], est_names)
       , eval_f = minme
       , opts = opts.crs(print_level = print_level, maxeval = 1000)
     )        
     
     # store
     parvec.hat = opt$solution
-    parhat = parvec2par(parvec.hat,par.guess,est.set$est_names)
+    parhat = parvec2par(parvec.hat,par.guess,est_names)
     
-    
+    ### pif-grid ====
   } else if (est.set$opt_method == 'pif-grid'){
+    
+    # grab options
+    if ('opt_pif_grid_base' %in% names(est.set)){
+      pif_grid_base = est.set$opt_pif_grid_base
+    } else {
+      pif_grid_base = c(0,1,0.05)
+    }
+    if ('opts_list' %in% names(est.set)){
+      temp.opts = est.set$opts_list
+    } else {
+      temp.opts = opts.qa(print_level = print_level)
+    }
+    temp.opts$print_level = print_level
     
     
     # create pif grid from bounds
-    pif_grid = seq(est.set$model_fam[2,'pif']
-                   , est.set$model_fam[3,'pif']
-                   , 0.05)
+    templb = est.set$model_fam[2,'pif']
+    tempub = est.set$model_fam[3,'pif']
+    pif_grid = c(pif_grid_base, templb, tempub) %>% sort()
+    pif_grid = pif_grid[
+      pif_grid >= templb & pif_grid <= tempub
+    ]
+    
     
     # loop
     parhat_grid = tibble()
@@ -378,7 +378,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
       temp.par.guess = temp.par.guess %>% mutate(pif = pif_grid[i])
       
       # remove pif from stuff that is optimized directly
-      temp_est_names = est.set$est_names[!est.set$est_names == 'pif']
+      temp_est_names = est_names[!est_names == 'pif']
       
       # likelihood that gets optimized, with fixed pif
       minme = function(parvec){
@@ -395,15 +395,15 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
       # optimize
       temp_opt = nloptr(
         x0 = par2parvec(temp.par.guess, temp_est_names)
-        , lb = par2parvec(est.set$model_fam %>% filter(desc == 'lb'), temp_est_names)
-        , ub = par2parvec(est.set$model_fam %>% filter(desc == 'ub'), temp_est_names)
+        , lb = par2parvec(est.set$model_fam['lb',], temp_est_names)
+        , ub = par2parvec(est.set$model_fam['ub',], temp_est_names)
         , eval_f = minme
-        , opts = opts.qa(print_level = print_level)
+        , opts = temp.opts
       )         
       
       # enforce bounds
-      parvechat = pmax(temp_opt$solution, par2parvec(est.set$model_fam %>% filter(desc == 'lb'), temp_est_names)) 
-      parvechat = pmin(parvechat, par2parvec(est.set$model_fam %>% filter(desc == 'ub'), temp_est_names))
+      parvechat = pmax(temp_opt$solution, par2parvec(est.set$model_fam['lb',], temp_est_names)) 
+      parvechat = pmin(parvechat, par2parvec(est.set$model_fam['ub',], temp_est_names))
         
       temp_parhat = parvec2par(parvechat,temp.par.guess,temp_est_names) %>% 
         mutate(negloglike = temp_opt$objective)
@@ -425,19 +425,118 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
     parhat = parhat_grid[ibest,] %>% select(-negloglike)
     opt = opt_grid[[ibest]]
     
+    # optimize again over all est_names
+    
+    # likelihood that gets optimized
+    minme = function(parvec){
+      par = parvec2par(parvec,par.guess,est_names)
+      return = negloglike(tabs, par)
+    } # end minme
+    
+    # test likelihood at guess
+    parvecguess = par2parvec(par.guess,est_names)
+    minme(parvecguess)    
+    
+    opt = nloptr(
+      x0 = par2parvec(parhat, est_names)
+      , lb = par2parvec(est.set$model_fam['lb',], est_names)
+      , ub = par2parvec(est.set$model_fam['ub',], est_names)
+      , eval_f = minme
+      , opts = temp.opts
+    )      
+    
+    # store
+    parvec.hat = opt$solution
+    parhat = parvec2par(parvec.hat,par.guess,est_names)
+    
   } # end if est.set$opt_method
   
   
   return = list(
-    par = parhat
+    opt = opt
+    , par = parhat
     , negloglike = opt$objective
-    , opt = opt
   )
   
 } # end estimate
 
 toc = Sys.time()
 
+
+# bootstrap
+bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
+  
+  nsignal = length(tabs)
+  
+  # initialize bootstrap
+  set.seed(1053)
+  id_all = matrix(
+    sample(1:nsignal, size = nsignal*nboot, replace = T), nrow = nsignal 
+  )
+  id_all[,1] = 1:nsignal # fix first column is always the empirical data
+  
+  # initialize random guesses
+  par.guess.all = random_guess(set.boot, nboot, seed = 155)  
+  
+  start_time = Sys.time()
+  bootpar = tibble()
+  bootstat = tibble()
+  for (booti in 1:nboot){
+    print(paste0('booti = ', booti))    
+    
+    tic = Sys.time()
+    
+    # estimate one ===
+    boottabs = tabs[id_all[,booti]]
+    par.guess = par.guess.all[booti,]
+    
+    est = estimate(set.boot,boottabs,par.guess)
+    stat = make_stats(est$par)
+    
+    # store === 
+    bootpar = rbind(bootpar, est$par %>% mutate(booti = booti))
+    bootstat = rbind(bootstat, stat  %>% mutate(booti = booti))
+    
+    
+    if (booti%%10 == 0){
+      filename = paste0('boot ', bootname, ' started ', start_time)
+      filename = gsub('[:]', '-', filename)
+      filename = substr(filename, 1, nchar(filename)-3)
+      save(
+        list = ls(all.names = T)
+        , file = paste0('intermediate/', filename, '.Rdata')
+        , envir = environment()
+      )
+    } # if booti
+    
+    # feedback
+    toc = Sys.time()
+    print(toc - tic)
+    print(est$par)
+    
+    p.fit = hist_emp_vs_par(boottabs,est$par) +
+      ggtitle(
+        paste0(
+          'pif = ', round(est$par$pif,2), ', ', substr(est$opt$message, 7, 20)
+        )
+      )
+    p.pif = bootpar %>% 
+      ggplot(aes(x=pif)) +
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) +
+      theme_minimal()    
+    p.hurdle = bootstat %>% 
+      ggplot(aes(x=h_fdr5)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,5,0.5)) + 
+      theme_minimal() +
+      xlab('t-hurdle 5%')
+    
+    grid.arrange(p.fit,p.pif,p.hurdle,nrow = 1)  
+    
+    
+  } # for booti
+  
+  
+} # end function bootstrap
 
 ## Data generation ====
 
@@ -579,13 +678,14 @@ make_stats = function(par, fdrlist = c(10, 5, 1)){
   
   # save into stat
   stat = tibble(
-    booti = booti, stat = paste0('fdr', fdrlist), value = hurdlelist
-  ) %>% 
+    stat = paste0('h_fdr', fdrlist), value = hurdlelist
+  ) %>%
     rbind(
       tibble(
-        booti = booti, stat = 'pr_tgt_2', value = pr_discovery[tlist == 1.96]
+        stat = 'pr_tgt_2', value = pr_discovery[tlist == 1.96]
       )
-    )
+    ) %>% 
+    pivot_wider(names_from = stat, values_from = value)
   
   return = stat
   
@@ -608,7 +708,7 @@ hist_emp_vs_par = function(tabs,par){
   f_obs = function(tt) d(tabs.o)(tt)*pub_prob(tt,par)/denom
   
   # setup
-  edge = c(seq(0,15,1), 40)
+  edge = c(seq(0,15,1), 40, 100)
   freq = numeric(length(edge)-1)
   for (i in 2:length(edge)){
     a = edge[i-1]; b = edge[i]
@@ -638,3 +738,15 @@ hist_emp_vs_par = function(tabs,par){
     xlim(xmin,xmax)  
   
 } # end hist_emp_vs_par
+
+
+check_lognorm_moments = function(mu,sig){
+  mom = data.frame(
+    mean = exp(mu + sig^2/2)
+    , var = (exp(sig^2)+2)*exp(2*mu+sig^2)
+    , median = exp(mu)
+  )
+  
+  print(mom)
+  
+} # end check_lognorm_moments

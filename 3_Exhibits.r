@@ -4,20 +4,19 @@ rm(list = ls())
 
 source('0_Settings.r')
 
-load('intermediate/boot single-norm-trunc started 2022-04-06 14-46.Rdata')
+load('intermediate/boot deleteme started 2022-04-07 15-55.Rdata')
 
 
-bootall = bootpar
-bootall$booti = row.names(bootpar)
+bootall.wide = bootpar %>% 
+  left_join(bootstat, by = 'booti') %>% 
+  as_tibble()
 
-bootall = bootall %>% 
-  select(-c(pubfam,mufam)) %>% 
+bootall.long = bootall.wide %>% 
+  select(-c(mufam,pubfam)) %>% 
   pivot_longer(
-    -booti, names_to = 'stat', values_to = 'value'
+    cols = c(-booti)
   ) %>% 
-  rbind(
-    bootstat
-  )
+  rename(stat = name)
 
 
 # TABLES ====
@@ -29,14 +28,14 @@ stat_order = tibble(
 stat_order$id = 1:nrow(stat_order)
 
 # point estimate
-point = bootall %>% 
+point = bootall.long %>% 
   filter(booti == 1) %>% 
   inner_join(stat_order) %>% 
   select(-booti) %>% 
   rename(point = value) 
 
 # bootstrap order statistics
-bootsum = bootall %>% 
+bootsum = bootall.long %>% 
   inner_join(stat_order) %>% 
   group_by(id, stat) %>% 
   summarize(
@@ -54,71 +53,15 @@ tab.est = point %>%
 
 tab.est
 
-write.csv(tab.est, 'output/tab-est.csv', row.names = F)
 
-## Tables with mu_small and mu_large ====
-stat_order = tibble(
-  stat = c('pif','pi_small','mu_small','sig_small','mu_large','sig_large','pubpar2')
-)
-stat_order$id = 1:nrow(stat_order)
-
-
-bootall2= bootall %>% 
-  pivot_wider(
-    names_from = stat, values_from = value
-  ) %>% 
-  mutate(
-    pi_small = if_else(mua<mub, pia, (1-pia))
-    , mu_small = if_else(mua<mub, mua, mub)
-    , sig_small = if_else(mua<mub, siga, sigb)    
-    , mu_large = if_else(mua<mub, mub, mua)
-    , sig_large = if_else(mua<mub, sigb, siga)
-  ) %>% 
-  select(
-    -c(pia,mua,siga,mub,sigb)
-  ) %>% 
-  pivot_longer(
-    cols = -booti, names_to = 'stat', values_to = 'value'
-  )
-
-# point estimate
-point = bootall2 %>% 
-  filter(booti == 1) %>% 
-  inner_join(stat_order) %>% 
-  select(-booti) %>% 
-  rename(point = value) 
-
-bootsum = bootall2 %>% 
-  inner_join(stat_order) %>% 
-  group_by(id, stat) %>% 
-  summarize(
-    blank1 = NA
-    , p05 = quantile(value, .05)
-    , blank2 = NA
-    , p25 = quantile(value, .25)
-    , p50 = quantile(value, .50)
-    , p75 = quantile(value, .75)
-    , blank3 = NA    
-    , p95 = quantile(value, .95)
-  )
-
-tab.est2 = point %>% 
-  left_join(bootsum) %>% 
-  arrange(id) %>% 
-  select(-id)
-
-tab.est2
-
-write.csv(tab.est2, 'output/tab-est-mu-sort.csv', row.names = F)
+write.csv(tab.est, 'output/tab-est-mu-sort.csv', row.names = F)
 
 # PLOT SKETCHES ====
 
 ## Model fit ====
 
 # the first boot is the point estimate
-est.point = bootall %>% 
-  filter(booti == 1) %>% 
-  pivot_wider(names_from = stat) %>% 
+est.point = bootall.wide[1,]
   mutate(
     pubfam = set.boot$model_fam$pubfam[1]
     , mufam = set.boot$model_fam$mufam[1]
@@ -130,7 +73,7 @@ hist_emp_vs_par(cz_filt$tabs,est.point)
 
 
 ## Prop 1: Panel A ====
-bootall %>% 
+bootall.long %>%
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
   ggplot(
     aes(x=value, fill=stat)
@@ -138,7 +81,7 @@ bootall %>%
   geom_histogram(position = 'dodge', alpha = 0.6)
 
 ## Prop 1: Panel B ====
-bootall %>% 
+bootall.long %>% 
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
   pivot_wider(names_from = stat, values_from = value) %>% 
   mutate(
@@ -157,15 +100,15 @@ bootall %>%
 pif_cut = c(1/3,2/3)
 breaks = seq(0,3.6,0.2)
 
-bootall %>% 
-  filter(stat %in% c('pif','fdr5')) %>% 
+bootall.long %>% 
+  filter(stat %in% c('pif','h_fdr5')) %>% 
   pivot_wider(names_from = stat) %>% 
   mutate(
     pif_cat = findInterval(pif, pif_cut)
     , pif_cat = as.factor(pif_cat)
   ) %>% 
   ggplot(
-    aes(x=fdr5, fill=pif_cat)
+    aes(x=h_fdr5, fill=pif_cat)
   ) +
   geom_histogram(breaks = breaks) +
   geom_vline(
@@ -177,15 +120,15 @@ bootall %>%
 pif_cut = c(1/3,2/3)
 breaks = seq(0,4,0.2)
 
-bootall %>% 
-  filter(stat %in% c('pif','fdr1')) %>% 
+bootall.long %>% 
+  filter(stat %in% c('pif','h_fdr1')) %>% 
   pivot_wider(names_from = stat) %>% 
   mutate(
     pif_cat = findInterval(pif, pif_cut)
     , pif_cat = as.factor(pif_cat)
   ) %>% 
   ggplot(
-    aes(x=fdr1, fill=pif_cat)
+    aes(x=h_fdr1, fill=pif_cat)
   ) +
   geom_histogram(breaks = breaks) +
   geom_vline(
