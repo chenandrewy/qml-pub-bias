@@ -45,15 +45,62 @@ est.point = estimate(
   , par.guess = random_guess(set.check,1,1243)
   , print_level = 3
 )
+est.point$bias = shrink_samp(cz_filt_tabs,est.point$par) # for now assume signs don't matter
 
 est.point$par %>% print()
 est.point$negloglike %>% print()
 
 p_point = hist_emp_vs_par(cz_filt_tabs,est.point$par)
-p_point
+p_bias = est.point$bias %>% as_tibble() %>% ggplot(aes(x=value)) + geom_histogram() +
+  xlab('bias')
+
+grid.arrange(p_point,p_bias, nrow = 1)
 
 toc = Sys.time()
 toc - tic
+
+# TEST ONE SIMULATION ====
+nshrink = 1000
+
+temp.truth = est.point$par %>% mutate(pif = 0.9)
+  
+sim.one = sim_pubcross_ar1(temp.truth, rho = 0.2, nport = 10000)
+
+nshrink = min(dim(sim.one)[1], nshrink)
+
+est.sim.one = estimate(
+  est.set = set.check 
+  , tabs = sim.one$tabs
+  , par.guess = random_guess(set.check,1,1243)
+  , print_level = 3
+)
+
+est.sim.one$bias = shrink_samp(sim.one$tstat[1:nshrink],est.point$par) 
+
+rbind(
+  temp.truth %>% mutate(group = 'truth')
+  ,est.sim.one$par  %>% mutate(group = 'est')
+) 
+
+# plot
+p_point = hist_emp_vs_par(sim.one$tabs,est.sim.one$par)
+plotme = cbind(
+  sim.one[1:nshrink,], est.sim.one$bias %>% as_tibble() %>% rename(bias = value)
+) %>% 
+  mutate(
+    muhat = tstat*(1-bias)
+  ) %>% 
+  as_tibble()
+
+temptext = paste0('Ebias = ', round(mean(est.sim.one$bias),2))
+p_bias = plotme %>% 
+  ggplot(aes(x=muhat,y=mu)) + 
+  geom_point() + 
+  geom_abline(intercept = 0, slope = 1) +
+  annotate("text", x=10,y=1,label = temptext, size = 5)
+
+grid.arrange(p_point,p_bias, nrow = 1)
+
 
 
 # TEST ON MANY SIMULATIONS ====

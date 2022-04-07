@@ -14,13 +14,12 @@ library(gridExtra)
 dir.create('intermediate/', showWarnings = F)
 dir.create('output/', showWarnings = F)
 
-
-# GLOBALS ====
-
 # root of March 2022 
 pathRelease = 'https://drive.google.com/drive/folders/1O18scg9iBTiBaDiQFhoGxdn4FdsbMqGo'
 
-## NLOPT settings  ====
+# ESTIMATION FUNCTIONS ====
+
+## Optimization settings ====
 
 opts.crs = function(
   print_level = 0, maxeval = 200, xtol_rel = 0.001, ranseed = 1142
@@ -47,27 +46,7 @@ opts.qa = function(
   )
 } # end opts.qa
 
-## estimation setting examples ====
-temp.set = list(
-  opt_method = 'pif-grid' # 'two-stage' or 'crs-only' or 'pif-grid'
-  , opt_pif_grid_base = seq(0.00, 1.00, 0.10)
-  , opt_list = opts.qa(xtol_rel = 1e-3)
-  , model_fam = data.frame(
-    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
-    , pif     = c(NA, 0.01, 0.99)
-    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
-    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
-    , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'  
-    , pubpar1 = c(NA,  1/3, 2/3)
-    , row.names  = c('base','lb','ub')  
-  )  
-)
-
-# FUNCTIONS ====
-
-
-
-## Estimation ====
+## Notation ====
 
 # function: translate par df to parvec vector form
 par2parvec = function(par, namevec){
@@ -80,6 +59,8 @@ parvec2par = function(parvec,parbase,namevec){
   par[ , namevec] = parvec %>% c() %>% t() %>% as.numeric
   return(par)
 } # end parvec2par
+
+## Functional Forms ====
 
 # prob of publication
 pub_prob = function(tt,par){
@@ -223,6 +204,8 @@ negloglike = function(tabs,par){
   return = -1*mean(log(singlelikes))
   
 } # end f_obs
+
+## Estimation  ====
 
 random_guess = function(est.set, nguess, seed = NULL){
   
@@ -462,6 +445,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
 
 toc = Sys.time()
 
+## Bootstrap ====
 
 # bootstrap
 bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
@@ -491,7 +475,16 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
     par.guess = par.guess.all[booti,]
     
     est = estimate(set.boot,boottabs,par.guess)
+    
+    # make stats
     stat = make_stats(est$par)
+    tempbias = shrink_samp(boottabs, est$par)
+    stat = stat %>% 
+      mutate(
+        bias_mean = mean(tempbias)
+        , bias_med = median(tempbias)
+      )
+      
     
     # store === 
     bootpar = rbind(bootpar, est$par %>% mutate(booti = booti))
@@ -516,9 +509,7 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
     
     p.fit = hist_emp_vs_par(boottabs,est$par) +
       ggtitle(
-        paste0(
-          'pif = ', round(est$par$pif,2), ', ', substr(est$opt$message, 7, 20)
-        )
+        paste0('pif = ', round(est$par$pif,2), ', ', substr(est$opt$message, 7, 20))
       )
     p.pif = bootpar %>% 
       ggplot(aes(x=pif)) +
@@ -529,8 +520,13 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
       geom_histogram(aes(y=stat(density)), breaks = seq(0,5,0.5)) + 
       theme_minimal() +
       xlab('t-hurdle 5%')
+    p.bias = bootstat %>% 
+      ggplot(aes(x=bias_mean)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) + 
+      theme_minimal() +
+      xlab('mean bias')
     
-    grid.arrange(p.fit,p.pif,p.hurdle,nrow = 1)  
+    grid.arrange(p.fit,p.pif,p.hurdle,p.bias,nrow = 2)  
     
     
   } # for booti
@@ -538,7 +534,7 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
   
 } # end function bootstrap
 
-## Data generation ====
+# DATA GENERATION ====
 
 import_cz = function(dl = F){
   
@@ -648,7 +644,44 @@ sim_pubcross_ar1 = function(par, rho, nport){
   
 } # end sim_pubcross_ar1
 
-## Stats and Plotting ====
+# STATS AND PLOTTING ====
+
+shrink_one = function(t,par,mutrue.o=NULL){
+  
+  if (is.null(mutrue.o)){
+    mutrue.o = make_mutrue_object(par)
+  }
+  
+  # kernel_pos is f(t,mu|mutrue).  it gets reused in the numerator and denom.
+  # note kernel_pos depends on observed t
+  # the dirac term disappears in the numerator, and becomes dnorm(t,0,1) in the denom
+  kernel_pos = function(mm) dnorm(t,mm,1)*d(mutrue.o)(mm) 
+  numer = (1-par$pif)*integrate(function (mm) mm*kernel_pos(mm), -Inf, Inf)$value
+  denom = par$pif*dnorm(t,0,1) + (1-par$pif)*integrate(kernel_pos, -Inf, Inf)$value
+  
+  Emu_t = numer/denom 
+  Eep_t = t-Emu_t
+  bias = Eep_t/t
+  
+  return = tibble(Emu_t = Emu_t, Eep_t = Eep_t, bias = bias)
+  
+} # end shrink_one
+
+
+shrink_samp = function(t, par){
+  
+  mutrue.o = make_mutrue_object(par)
+
+  bias = numeric(length(t))
+  for (i in 1:length(t)){
+    temp = shrink_one(t[i],par,mutrue.o)
+    bias[i] = temp$bias
+  } # for i
+  
+  return = bias
+
+} # shrink_samp
+
 
 make_stats = function(par, fdrlist = c(10, 5, 1)){
   
@@ -740,6 +773,9 @@ hist_emp_vs_par = function(tabs,par){
 } # end hist_emp_vs_par
 
 
+
+
+# REFERENCE ====
 check_lognorm_moments = function(mu,sig){
   mom = data.frame(
     mean = exp(mu + sig^2/2)

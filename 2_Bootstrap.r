@@ -13,7 +13,7 @@ min_per_boot
 # ESTIMATION SETUP ====
 
 # name for documentation
-bootname = 'deleteme'
+bootname = 'a-priori-model'
 
 # filter 
 #   remove 24 tabs < 1.96.  Modeling these does not pass cost / benefit
