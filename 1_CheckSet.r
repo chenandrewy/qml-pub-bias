@@ -1,20 +1,20 @@
 # 2022 04 Andrew: estimations on simulated data with correlations
 
 # Based off experiments/qml5*.ret
-rm(list = ls())
+
 
 # ENVIRONMENT ====
+rm(list = ls())
 source('0_Settings.r')
 tic_all = Sys.time()
 
 # SETTINGS ====
 
 ## estimation settings  ====
-# est.set$opt_method= 'two-stage' or 'crs-only' or 'pif-grid'
 set.check = list(
-  model_fam = fam.mixnorm
-  , est_names = c('pif','pia','mua','siga','mub','sigb','pubpar2')
-  , opt_method = 'two-stage'
+  model_fam = fam.lognormraw
+  , est_names = c('pif','mua','siga')
+  , opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
 )
 
 # force no selection for the sim (due to weak id)
@@ -54,7 +54,7 @@ toc = Sys.time()
 toc - tic
 
 
-# SIMULATE ====
+# TEST ON MANY SIMULATIONS ====
 # simulations should use pubfam = 'trunc' and pubpar1 = 0 to avoid
 # weak identification problems
 
@@ -106,33 +106,40 @@ for (i in 1:nrow(parveclist)){
 } # for i
 
 
-## aggregate results ====
+# AGGREGATE RESULTS ====
+
 
 parveclist
 estlist[ , set.sim$est_names]
 
-estlist2 = estlist %>% 
-  mutate(
-    pi_small = if_else(mua<mub, pia, (1-pia))
-    , mu_small = if_else(mua<mub, mua, mub)
-    , sig_small = if_else(mua<mub, siga, sigb)    
-    , mu_large = if_else(mua<mub, mub, mua)
-    , sig_large = if_else(mua<mub, sigb, siga)
-  ) %>% 
-  mutate(
-    pia = pi_small, mua = mu_small, siga = sig_small
-    , mub = mu_large, sigb = sig_large
-  ) %>% 
-  select(
-    -ends_with('small'), -ends_with('large')
-  )
+if (set.check$model_fam$mufam[1] == 'mix-norm'){
+  estlist2 = estlist %>% 
+    mutate(
+      pi_small = if_else(mua<mub, pia, (1-pia))
+      , mu_small = if_else(mua<mub, mua, mub)
+      , sig_small = if_else(mua<mub, siga, sigb)    
+      , mu_large = if_else(mua<mub, mub, mua)
+      , sig_large = if_else(mua<mub, sigb, siga)
+    ) %>% 
+    mutate(
+      pia = pi_small, mua = mu_small, siga = sig_small
+      , mub = mu_large, sigb = sig_large
+    ) %>% 
+    select(
+      -ends_with('small'), -ends_with('large')
+    )
   
+} else {
+  estlist2 = estlist
+} # if mufam
+
 
 stat_long = parveclist %>% 
   rename_at(vars(everything()), function(x) paste0(x, '_truth')) %>% 
   cbind(
     estlist2 %>% select(all_of(set.sim$est_names))
-  ) 
+  ) %>% 
+  arrange(nport_truth, pif_truth)
 
 stat_pif_hat = stat_long %>% 
   pivot_wider(
@@ -144,11 +151,7 @@ stat_pif_hat = stat_long %>%
 
 stat_long
 
-par.truth.base
-
 stat_pif_hat
-
-
 
 
 toc_all = Sys.time()

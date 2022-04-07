@@ -39,14 +39,38 @@ fam.mixnorm = data.frame(
 
 fam.t = data.frame(
   desc = c('base','lb','ub')
-  , mufam = 't'
-  , pubfam = 'stair' # 'stair' or 'piecelin'    
-  , pif     = c(0.5, 0.001, 0.999)
-  , mua  = c(3, 0.001, 10)
-  , siga = c(3, 0.01, 10) # siga = 0.001 leads to integration errors
-  , nua  = c(4, 2.1, 1000)
+  , mufam   = 't'
+  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
+  , pif     = c(0.05, 0.10, 0.95)
+  , mua     = c(3, 2.0, 10)
+  , siga    = c(3, 0.1, 10) # siga = 0.001 leads to integration errors
+  , nua     = c(100, 2.1, 100)
   , pubpar1 = c(NA, NA, NA)
-  , pubpar2 = c(1/2, 1/3, 2/3)
+  , pubpar2 = c(0.5,  1/3, 1)
+) 
+
+fam.lognorm = data.frame(
+  desc = c('base','lb','ub')
+  , mufam   = 'lognorm'
+  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
+  , pif     = c(0.5, 0.01, 0.99)
+  , mua     = c(3, -10, 10)
+  , siga    = c(3, 0.2, 10) # siga = 0.1 leads to integration errors
+  , pubpar1 = c(NA, NA, NA)
+  , pubpar2 = c(0.5,  1/3, 1)
+) 
+
+
+
+fam.lognormraw = data.frame(
+  desc = c('base','lb','ub')
+  , mufam   = 'lognormraw'
+  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'
+  , pif     = c(0.5, 0.01, 0.99)
+  , mua     = c(3, -3, 3)
+  , siga    = c(3, 0.05, 3) 
+  , pubpar1 = c(NA, NA, NA)
+  , pubpar2 = c(0.5,  1/3, 2/3)
 ) 
 
 ## NLOPT settings  ====
@@ -65,7 +89,7 @@ opts.crs = function(
 
 
 opts.qa = function(
-  print_level = 0, maxeval = 1000, xtol_rel = 1e-3, ftol_rel = 1e-8
+  print_level = 3, maxeval = 1000, xtol_rel = 1e-3, ftol_rel = 1e-8
 ){
   list(
     algorithm = 'NLOPT_LN_BOBYQA' 
@@ -146,6 +170,29 @@ make_tabs_object = function(par){
       , mixCoeff = c(par$pif, (1-par$pif))
     )
     
+    #   lognormal
+  } else if (par$mufam == 'lognorm'){
+    
+    #    translate using wikipedia formulas
+    tempmu = log(par$mua^2/sqrt(par$siga^2+par$mua^2))
+    tempsig = log(1 + par$siga^2/par$mua^2)    
+    # hack
+    tempsig = max(tempsig, 0.1)    
+    mutrue.o = Lnorm(tempmu, tempsig)
+    
+    t.o = UnivarMixingDistribution(
+      Norm(0,1), mutrue.o
+      , mixCoeff = c(par$pif, (1-par$pif))
+    )    
+    
+  } else if (par$mufam == 'lognormraw'){
+    
+    t.o = UnivarMixingDistribution(
+      Norm(0,1), Lnorm(par$mua, par$siga)
+      , mixCoeff = c(par$pif, (1-par$pif))
+    )    
+    
+    
   } # end if par$mufam
   
   # take absolute value
@@ -174,8 +221,26 @@ make_mutrue_object = function(par){
     tempscale = par$siga*sqrt((par$nua-2)/par$nua)
     mutrue.o = tempscale*Td(df = par$nua) + par$mua
     
+    #   log normal
+  } else if (par$mufam == 'lognorm'){
+    
+    #    translate using wikipedia formulas
+    tempmu = log(par$mua^2/sqrt(par$siga^2+par$mu^2))
+    tempsig = log(1 + par$siga^2/par$mua^2)
+    
+    # hack
+    tempsig = max(tempsig, 0.1)
+    
+    mutrue.o = Lnorm(tempmu, tempsig)
+    
+    #   log normal raw
+  } else if (par$mufam == 'lognormraw'){
+    
+    mutrue.o =   Lnorm(par$mua, par$siga)
+    
   } # end if par$mufam
   
+  Lnorm(par$mua, par$siga)
   
 } # end make_tabs_object
 
@@ -186,9 +251,10 @@ negloglike = function(tabs,par){
   tabs.o = make_tabs_object(par)
   
   #   observed density
-  denom = integrate(
-    function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, Inf
-  )$value
+  #   integrate in pieces for accuracy
+  denom1 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, 1.96)$value
+  denom2 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 1.96, Inf)$value  
+  denom = denom1 + denom2
   
   singlelikes = d(tabs.o)(tabs)*pub_prob(tabs,par)/denom
   
@@ -294,14 +360,19 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
     
   } else if (est.set$opt_method == 'pif-grid'){
     
-    # put 0.5 first
-    pif_grid = c(0.5, seq(0.05,0.95,0.05) ) %>% unique
+    
+    # create pif grid from bounds
+    pif_grid = seq(est.set$model_fam[2,'pif']
+                   , est.set$model_fam[3,'pif']
+                   , 0.05)
     
     # loop
     parhat_grid = tibble()
     opt_grid = list()
     temp.par.guess = par.guess 
     for (i in 1:length(pif_grid)){
+      
+      # print(pif_grid[i])
 
       # fix pif
       temp.par.guess = temp.par.guess %>% mutate(pif = pif_grid[i])
@@ -491,7 +562,9 @@ make_stats = function(par, fdrlist = c(10, 5, 1)){
   fdr = NA*numeric(length(tlist))
   for (ti in 1:length(tlist)){
     tt = tlist[ti]
-    pr_discovery[ti] = integrate(function(ttt) d(tabs.o)(ttt), tt, Inf)$value
+    temp1 = integrate(function(ttt) d(tabs.o)(ttt), tt, 10)$value
+    temp2 = integrate(function(ttt) d(tabs.o)(ttt), 10, Inf)$value
+    pr_discovery[ti] = temp1 + temp2
     fdr[ti] = 2*pnorm(-tt)/pr_discovery[ti]*par$pif*100
     if (fdr[ti]<=min(fdrlist) & tlist[ti] >= 1.96){
       break
@@ -526,9 +599,11 @@ hist_emp_vs_par = function(tabs,par){
   
   # observed density
   #   find denominator for conditional density
-  denom = integrate(
-    function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, Inf
-  )$value
+  #   integrate in two pieces for accuracy
+  denom1 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, 1.96)$value
+  denom2 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 1.96, 6)$value  
+  denom3 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 6, Inf)$value  
+  denom = denom1 + denom2 + denom3
   
   f_obs = function(tt) d(tabs.o)(tt)*pub_prob(tt,par)/denom
   

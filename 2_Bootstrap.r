@@ -10,31 +10,26 @@ nboot_wanted = 1000
 min_per_boot = 12*60/nboot_wanted
 min_per_boot
 
-# IMPORT PUBCROSS ===
-
-pubcross_cz = import_cz(dl = F)
-
 # ESTIMATION SETUP ====
 
 # name for documentation
-bootname = 'tuning-for-pif'
+bootname = 'lognorm-raw'
 
 # filter 
-#   remove 24 tabs < 1.96.  Modeling these may not pass cost / benefit
-samp = pubcross_cz %>% filter(tabs > 1.96)
+#   remove 24 tabs < 1.96.  Modeling these does not pass cost / benefit
+cz_filt = import_cz(dl=F) %>% filter(tabs > 1.96)
 
 # bootstrap
 nboot = 1000 # use 1 to just estimate the point
-nsignal = nrow(samp)
+nsignal = nrow(cz_filt)
 
 # estimation settings 
+#   opt_method= 'two-stage' or 'crs-only' or 'pif-grid'
 set.boot = list(
-  model_fam = fam.mixnorm
-  , est_names = c('pif','pia','mua','siga','mub','sigb','pubpar2')
-  , opts1 = opts.crs
-  , opts2 = NULL
+  model_fam = fam.lognormraw
+  , est_names = c('pif','mua','siga','pubpar2')
+  , opt_method = 'two-stage'
 )
-
 
 # initialize bootstrap
 id_all = matrix(
@@ -57,12 +52,11 @@ for (booti in 1:nboot){
   ## estimate one ====
   # booti = 3, 5, 6, 13
   
-  bootsamp = samp[id_all[,booti], ]
+  bootsamp = cz_filt[id_all[,booti], ]
   par.guess = par.guess.all[booti,]
   
   est = estimate(set.boot,bootsamp$tabs,par.guess)
   stat = make_stats(est$par)
-  
   
   
   # store ==== 

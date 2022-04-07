@@ -4,13 +4,21 @@ rm(list = ls())
 
 source('0_Settings.r')
 
-pubcross = fread('output/pubcross.csv') 
-bootall = fread('output/bootall.csv')
+load('intermediate/boot single-norm-trunc started 2022-04-06 14-46.Rdata')
 
-# if (!exists('set.boot')){
-#   set.boot$model_fam = par.base %>% mutate(mufam = 'mix-norm')
-#   # bootall$model_fam$mufam = 'mix-norm'
-# }
+
+bootall = bootpar
+bootall$booti = row.names(bootpar)
+
+bootall = bootall %>% 
+  select(-c(pubfam,mufam)) %>% 
+  pivot_longer(
+    -booti, names_to = 'stat', values_to = 'value'
+  ) %>% 
+  rbind(
+    bootstat
+  )
+
 
 # TABLES ====
 
@@ -117,7 +125,7 @@ est.point = bootall %>%
   )
 
 # call function for plotting point estimate (in 0_Environment)
-hist_emp_vs_par(samp$tabs,est.point)
+hist_emp_vs_par(cz_filt$tabs,est.point)
 
 
 
