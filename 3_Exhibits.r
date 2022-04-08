@@ -1,12 +1,16 @@
 # 2022 03 makes exhibits from bootall, the output of 2_CustomStats
 rm(list = ls())
-# ENVIRONMENT ====
+# SETUP ====
 
 source('0_Settings.r')
 
-load('intermediate/boot deleteme started 2022-04-07 15-55.Rdata')
+# load bootstrap
+load('intermediate/boot a-priori-model started 2022-04-07 18-23.Rdata')
 
+# rename tabs to be more clear (these are |t| from filtered cz data)
+cz_filt_tabs = tabs
 
+# merge bootstrapped parameters and boot statistics in two formats
 bootall.wide = bootpar %>% 
   left_join(bootstat, by = 'booti') %>% 
   as_tibble()
@@ -17,7 +21,6 @@ bootall.long = bootall.wide %>%
     cols = c(-booti)
   ) %>% 
   rename(stat = name)
-
 
 # TABLES ====
 
@@ -68,7 +71,7 @@ est.point = bootall.wide[1,]
   )
 
 # call function for plotting point estimate (in 0_Environment)
-hist_emp_vs_par(cz_filt$tabs,est.point)
+hist_emp_vs_par(cz_filt_tabs,est.point)
 
 
 
@@ -113,7 +116,9 @@ bootall.long %>%
   geom_histogram(breaks = breaks) +
   geom_vline(
     xintercept = qnorm(1-0.05/2)
-  )
+  ) + 
+  annotate('text', x= 2.5,y=200, label = 'classical hurdle') +
+  xlab('t-hurdle for a 5% FDR') 
 
 ## t-hurdle: fdr = 1% ====
 
@@ -133,5 +138,53 @@ bootall.long %>%
   geom_histogram(breaks = breaks) +
   geom_vline(
     xintercept = qnorm(1-0.01/2)
-  )
+  ) + 
+  annotate('text', x= 3,y=200, label = 'classical hurdle') +
+  xlab('t-hurdle for a 1% FDR')
 
+## mean shrinkage ====
+
+pif_cut = c(1/3,2/3)
+breaks = seq(0,100,1)
+
+bootall.long %>% 
+  filter(stat %in% c('pif','bias_mean')) %>% 
+  pivot_wider(names_from = stat) %>% 
+  mutate(
+    pif_cat = findInterval(pif, pif_cut)
+    , pif_cat = as.factor(pif_cat)
+    , bias_mean = bias_mean*100
+  )  %>% 
+  ggplot(
+    aes(x=bias_mean, fill=pif_cat)
+  ) +
+  geom_histogram(breaks = breaks) +
+  geom_vline(
+    xintercept = 26
+  ) + 
+  annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
+  xlab('Mean bias (%)')
+
+
+## median shrinkage ====
+
+pif_cut = c(1/3,2/3)
+breaks = seq(0,100,1)
+
+bootall.long %>% 
+  filter(stat %in% c('pif','bias_med')) %>% 
+  pivot_wider(names_from = stat) %>% 
+  mutate(
+    pif_cat = findInterval(pif, pif_cut)
+    , pif_cat = as.factor(pif_cat)
+    , bias_med = bias_med*100
+  )  %>% 
+  ggplot(
+    aes(x=bias_med, fill=pif_cat)
+  ) +
+  geom_histogram(breaks = breaks) +
+  geom_vline(
+    xintercept = 26
+  ) + 
+  annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
+  xlab('Median bias (%)')
