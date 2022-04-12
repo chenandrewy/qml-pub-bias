@@ -4,6 +4,8 @@ rm(list = ls())
 
 source('0_Settings.r')
 
+library(latex2exp) # MAybe add to settings file?
+
 # load bootstrap
 load('intermediate/boot a-priori-model started 2022-04-07 18-23.Rdata')
 
@@ -56,7 +58,6 @@ tab.est = point %>%
 
 tab.est
 
-
 write.csv(tab.est, 'output/tab-est-mu-sort.csv', row.names = F)
 
 # PLOT SKETCHES ====
@@ -73,15 +74,47 @@ est.point = bootall.wide[1,]
 # call function for plotting point estimate (in 0_Environment)
 hist_emp_vs_par(cz_filt_tabs,est.point)
 
-
-
 ## Prop 1: Panel A ====
 bootall.long %>%
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
   ggplot(
-    aes(x=value, fill=stat)
+    aes(x = value, fill = stat)
   ) +
-  geom_histogram(position = 'dodge', alpha = 0.6)
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    position = 'dodge',
+    ) +
+  labs(
+    title = "Panel A",
+    y = "Frequency",
+    x = "Estimate",
+  ) +
+  theme_classic() +
+  theme(
+    # Font sizes
+    plot.title = element_text(hjust = 0.5, size = 24),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    
+    # Tweaking legend
+    legend.position = c(0.85, 0.85),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 20, b = 5, l = 5), 
+    legend.key.size = unit(1, "cm")
+    ) +
+  scale_fill_manual(
+    values = c("pif" = "firebrick4", "pr_tgt_2" = "dodgerblue2"),
+    name = NULL,
+    breaks = c("pif", "pr_tgt_2"),
+    labels = c(
+      TeX(r"($\hat{\pi}_F$)"),
+      TeX(r"($\hat{\textit{Pr}}\left( |t| > 1.96 \right)$)")
+      )
+    ) +
+  coord_cartesian(xlim = c(0, 0.9), ylim = c(0.01, .20))
 
 ## Prop 1: Panel B ====
 bootall.long %>% 
@@ -93,10 +126,31 @@ bootall.long %>%
   ggplot(
     aes(x=dif)
   ) + 
-  geom_histogram() +
   geom_vline(xintercept = 0) +
-  annotate(geom='text', x=0.5, y=100, label = 'raise hurdle') + 
-  annotate(geom='text', x=-0.5, y=100, label = 'lower hurdle')
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    fill = "dodgerblue2",
+    bins = 30
+    ) +
+  annotate(geom = 'text', x=0.5, y=0.125, label = TeX(r"(Raise hurdle \rightarrow)"), size = 7) + 
+  annotate(geom = 'text', x=-0.45, y=0.125, label = TeX(r"(\leftarrow Lower hurdle)"), size = 7) +
+  labs(
+    title = "Panel B",
+    y = "Frequency",
+    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|t| > 1.96\right)$)"),
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 24),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+    ) +
+  coord_cartesian(ylim = c(0.01, .15))
+
 
 ## t-hurdle: fdr = 5% ====
 
@@ -111,14 +165,50 @@ bootall.long %>%
     , pif_cat = as.factor(pif_cat)
   ) %>% 
   ggplot(
-    aes(x=h_fdr5, fill=pif_cat)
+    aes(x = h_fdr5, fill = pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
   geom_vline(
-    xintercept = qnorm(1-0.05/2)
-  ) + 
-  annotate('text', x= 2.5,y=200, label = 'classical hurdle') +
-  xlab('t-hurdle for a 5% FDR') 
+    xintercept = qnorm(1-0.05/2),
+    linetype = "dashed"
+  ) +
+  annotate('text', x = 2.55, y = 0.4, label = 'Classical hurdle', size = 7) +
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
+  labs(
+    title = "Panel A",
+    y = "Frequency",
+    x = "t-hurdle for FDR = 5%",
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 24),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    
+    legend.position = c(0.80, 0.65),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 35, b = 5, l = 5),
+    legend.key.size = unit(1, "cm"),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  ) +
+   scale_fill_manual(
+     values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1"),
+     name = NULL,
+     breaks = c("0", "1", "2"),
+     labels = c(
+       TeX(r"($\hat{\pi}_F < 0.1$)"),
+       TeX(r"($\hat{\pi}_F \in \left(0.1, 0.4 \right]$)"),
+       TeX(r"($\hat{\pi}_F > 0.4$)")
+     )
+   ) +
+  coord_cartesian(ylim = c(0.0215, .45))
 
 ## t-hurdle: fdr = 1% ====
 
@@ -135,13 +225,34 @@ bootall.long %>%
   ggplot(
     aes(x=h_fdr1, fill=pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
   geom_vline(
-    xintercept = qnorm(1-0.01/2)
+    xintercept = qnorm(1-0.01/2),
+    linetype = "dashed"
   ) + 
-  annotate('text', x= 3,y=200, label = 'classical hurdle') +
-  xlab('t-hurdle for a 1% FDR')
-
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
+  labs(
+    title = "Panel B",
+    y = "Frequency",
+    x = "t-hurdle for FDR = 1%",
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 24),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  ) +
+  annotate('text', x = 3.30, y = 0.3, label = 'Classical hurdle', size = 7) +
+  scale_fill_manual(values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1")) +
+  coord_cartesian(ylim = c(0.0175, .375))
+  
 ## mean shrinkage ====
 
 pif_cut = c(1/3,2/3)
