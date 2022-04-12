@@ -131,7 +131,14 @@ make_tabs_object = function(par){
     t.o = UnivarMixingDistribution(
       Norm(0,1), Lnorm(par$mua, par$siga)  + Norm(0,1)
       , mixCoeff = c(par$pif, (1-par$pif))
-    )    
+    )
+    
+  } else if (par$mufam == 'exp'){
+    
+    t.o = UnivarMixingDistribution(
+      Norm(0,1), Exp(1/par$mua)  + Norm(0,1)
+      , mixCoeff = c(par$pif, (1-par$pif))
+    )   
     
     
   } # end if par$mufam
@@ -178,6 +185,11 @@ make_mutrue_object = function(par){
   } else if (par$mufam == 'lognormraw'){
     
     mutrue.o =   Lnorm(par$mua, par$siga)
+
+    #   exp
+  } else if (par$mufam == 'exp'){
+    
+    mutrue.o = Exp(1/par$mua)
     
   } # end if par$mufam
   
@@ -471,18 +483,38 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
     tic = Sys.time()
     
     # estimate one ===
-    boottabs = tabs[id_all[,booti]]
-    par.guess = par.guess.all[booti,]
     
+    # if first round, use empirical data
+    if (booti == 1){
+      boottabs = tabs
+      
+    # if second round, do either simple boot  
+    } else if (set.boot$boot_method == 'simple'){
+    
+      boottabs = tabs[id_all[,booti]]
+
+      
+    # or semi-parameteric boot
+    } else if (set.boot$boot_method == 'semipar') {
+      
+      simcross = sim_pubcross(par = bootpar[1, ], nport = 5000, seed = id_all[1, booti])
+      tempn = min(dim(simcross)[1], length(tabs)) # use nport that is smaller of simcross or emp nport
+      boottabs = simcross$tabs[1:tempn]
+      
+    } # end if booti == 1
+
+    par.guess = par.guess.all[booti,]    
     est = estimate(set.boot,boottabs,par.guess)
     
     # make stats
     stat = make_stats(est$par)
-    tempbias = shrink_samp(boottabs, est$par)
+    temp = make_stats_pub(boottabs, est$par)
     stat = stat %>% 
       mutate(
-        bias_mean = mean(tempbias)
-        , bias_med = median(tempbias)
+        bias_mean = mean(temp$bias)
+        , bias_med = median(temp$bias)
+        , fdrloc_mean = mean(temp$fdr_tabs)
+        , fdrloc_med = median(temp$fdr_tabs)        
       )
       
     
@@ -494,7 +526,7 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
     if (booti%%10 == 0){
       filename = paste0('boot ', bootname, ' started ', start_time)
       filename = gsub('[:]', '-', filename)
-      filename = substr(filename, 1, nchar(filename)-3)
+      filename = substr(filename, 1, nchar(filename)-6)
       save(
         list = ls(all.names = T)
         , file = paste0('intermediate/', filename, '.Rdata')
@@ -525,12 +557,19 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
       geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) + 
       theme_minimal() +
       xlab('mean bias')
+    p.fdrpub = bootstat %>% 
+      ggplot(aes(x=fdrloc_mean)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) + 
+      theme_minimal() +
+      xlab('fdr pub')    
     
-    grid.arrange(p.fit,p.pif,p.hurdle,p.bias,nrow = 2)  
+    grid.arrange(p.fit,p.pif,p.hurdle,p.bias,p.fdrpub,nrow = 3)  
     
     
   } # for booti
   
+  bootlist = list(par = bootpar, stat = bootstat)
+  return = bootlist
   
 } # end function bootstrap
 
@@ -538,6 +577,7 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
 
 import_cz = function(dl = F){
   
+  # download if desired
   if (dl) {
     
     # download signal documentation 
@@ -592,6 +632,7 @@ import_cz = function(dl = F){
       )
     
     write.csv(x = pubcross, file = 'output/pubcross.csv', row.names = F)
+    write.csv(x = ret, file = 'output/pubpanel.csv', row.names = F)
     
   } # if dl 
   
@@ -601,11 +642,52 @@ import_cz = function(dl = F){
   
 } # end download_cz
 
+sim_cz_residuals = function(nport, seed = NULL){
+  
+  set.seed(seed)
+
+  # create matrix of returns ====
+  ret = fread('output/pubpanel.csv') %>% 
+    filter(
+      !is.na(ret), year(date) >= 1963 # focus on more observed years
+    ) 
+  
+  # demean
+  meanret = ret %>% 
+    group_by(signalname) %>% 
+    summarize(rbar = mean(ret, na.rm=T))
+  ret = ret %>% 
+    left_join(meanret, by = 'signalname') %>% 
+    mutate(resid = ret - rbar)
+  
+  # bootstrap signals
+  signallist = ret$signalname %>% unique
+  bootsignals = tibble(
+    portid = 1:nport, signalname = sample(signallist, nport, replace = T)
+  )
+
+  # bootstrap dates
+  datelist = ret$date %>%  unique()
+  bootdates = sample(datelist, length(datelist), replace = T) %>% sort()
+  
+  # make bootstrapped dataset
+  bootret = expand.grid(
+    portid = 1:nport, date = bootdates
+  ) %>% 
+    as_tibble() %>% 
+    left_join(bootsignals, by = c('portid') ) %>% 
+    left_join(ret, by = c('signalname','date') )
+
+  return = bootret
+  
+} # end sim_cz_residuals
+
 
 
 
 # function for simulating truth, but only cross-sectional
-sim_pubcross_ar1 = function(par, rho, nport){
+sim_pubcross = function(par, nport, eptype = 'ar1', rho = 0.5, seed = NULL){
+  set.seed(seed)
   
   # cross-section of mus  
   type = runif(nport) > par$pif
@@ -618,15 +700,46 @@ sim_pubcross_ar1 = function(par, rho, nport){
   mu[type] = r(mutrue.o)(sum(type))
   
   # cross-section of observables
-  #   correlated noise
-  ep = numeric(nport)
-  for (i in 1:nport){
-    if (i==1){
-      ep[i] = rnorm(1,0,1)
-    } else{
-      ep[i] = rho*ep[i-1] + sqrt(1-rho^2)*rnorm(1,0,1)
-    }
-  } # end for i
+  #   ar1 noise
+  if (eptype  == 'ar1'){
+    ep = numeric(nport)
+    for (i in 1:nport){
+      if (i==1){
+        ep[i] = rnorm(1,0,1)
+      } else{
+        ep[i] = rho*ep[i-1] + sqrt(1-rho^2)*rnorm(1,0,1)
+      }
+    } # end for i
+    
+  #   bootstrapped from cz
+  } else if (eptype == 'boot'){
+    
+    bootret = sim_cz_residuals(nport)
+    
+    bootsum = bootret %>% 
+      group_by(portid) %>% 
+      filter(!is.na(resid)) %>% 
+      summarize(
+        m = mean(resid), vol = sd(resid), n = sum(!is.na(resid)), ep = m/vol*sqrt(n)
+      )  
+  
+    ep = bootsum$ep
+    
+    # check correlations
+    # tempmat = bootret %>% 
+    #   filter(portid <= 200) %>% 
+    #   group_by(portid) %>% 
+    #   arrange(portid,date) %>% 
+    #   mutate(dateid = row_number()) %>% 
+    #   select(dateid, portid, resid) %>% 
+    #   pivot_wider(names_from = portid, values_from = resid) %>% 
+    #   select(-dateid) 
+    # 
+    # tempcor = cor(tempmat, use = 'pairwise.complete.obs')
+    # hist(tempcor)
+    
+    
+  } # if eptype
   
   # cross-sectional stats
   cross = tibble(
@@ -642,7 +755,7 @@ sim_pubcross_ar1 = function(par, rho, nport){
   
   return = pubcross
   
-} # end sim_pubcross_ar1
+} # end sim_pubcross
 
 # STATS AND PLOTTING ====
 
@@ -668,19 +781,25 @@ shrink_one = function(t,par,mutrue.o=NULL){
 } # end shrink_one
 
 
-shrink_samp = function(t, par){
+make_stats_pub = function(t, par){
   
   mutrue.o = make_mutrue_object(par)
+  tabs.o = make_tabs_object(par)
 
   bias = numeric(length(t))
+  fdr_tabs = numeric(length(t))
   for (i in 1:length(t)){
     temp = shrink_one(t[i],par,mutrue.o)
     bias[i] = temp$bias
+    fdr_tabs[i] = 2*dnorm(t[i])*par$pif/d(tabs.o)(t[i]) # times 2 bc abs val
   } # for i
   
-  return = bias
+  
+  stats_pub = list(bias = bias, fdr_tabs = fdr_tabs)
+  
+  return = stats_pub
 
-} # shrink_samp
+} # make_stats_pub
 
 
 make_stats = function(par, fdrlist = c(10, 5, 1)){

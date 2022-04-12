@@ -1,14 +1,7 @@
+# SETUP  ====
+
 rm(list = ls())
-
-# ENVIRONMENT  ====
-
 source('0_Settings.r')
-
-# bootstrap timing for reference (about 1 min is desired)
-avail_hours = 12
-nboot_wanted = 1000
-min_per_boot = 12*60/nboot_wanted
-min_per_boot
 
 # ESTIMATION SETUP ====
 
@@ -37,6 +30,19 @@ set.boot = list(
     , pubpar1 = c(NA,  1/3, 2/3)
     , row.names  = c('base','lb','ub')  
   )  
+  , boot_method = 'semipar' # simple or semipar
 )
-# BOOTSTRAP! ====
-bootdat = bootstrap(cz_filt$tabs,set.boot, nboot, bootname)
+
+# alt estimation settings
+set.alt = set.boot
+set.alt$boot_method = 'simple'
+nbootalt = 1000
+
+# BOOTSTRAP FULL ====
+
+bootdat = bootstrap(cz_filt$tabs, set.boot, nboot, paste0(bootname, ' semipar'))
+
+
+# BOOTSTRAP alt  ====
+
+altdat = bootstrap(cz_filt$tabs, set.alt, nbootalt, paste0(bootname, ' simple'))

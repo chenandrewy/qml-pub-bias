@@ -45,16 +45,20 @@ est.point = estimate(
   , par.guess = random_guess(set.check,1,1243)
   , print_level = 3
 )
-est.point$bias = shrink_samp(cz_filt_tabs,est.point$par) # for now assume signs don't matter
+temp = make_stats_pub(cz_filt_tabs,est.point$par) # for now assume signs don't matter
+est.point$bias = temp$bias
+est.point$fdrloc = temp$fdr_tabs
 
 est.point$par %>% print()
 est.point$negloglike %>% print()
 
 p_point = hist_emp_vs_par(cz_filt_tabs,est.point$par)
-p_bias = est.point$bias %>% as_tibble() %>% ggplot(aes(x=value)) + geom_histogram() +
-  xlab('bias')
+p_bias = est.point$bias %>% as_tibble() %>% ggplot(aes(x=value)) + 
+  geom_histogram() + xlab('bias')
+p_fdrloc = est.point$fdrloc %>% as_tibble() %>% ggplot(aes(x=value)) + 
+  geom_histogram() + xlab('Prob False')
 
-grid.arrange(p_point,p_bias, nrow = 1)
+grid.arrange(p_point,p_bias,p_fdrloc, nrow = 1)
 
 toc = Sys.time()
 toc - tic
@@ -64,40 +68,41 @@ nshrink = 1000
 
 temp.truth = est.point$par %>% mutate(pif = 0.9)
   
-sim.one = sim_pubcross_ar1(temp.truth, rho = 0.2, nport = 10000)
+sim.one = sim_pubcross(temp.truth, nport = 10000, eptype = 'boot', seed = 938)
 
 nshrink = min(dim(sim.one)[1], nshrink)
 
-est.sim.one = estimate(
+est.simone = estimate(
   est.set = set.check 
   , tabs = sim.one$tabs
   , par.guess = random_guess(set.check,1,1243)
   , print_level = 3
 )
 
-est.sim.one$bias = shrink_samp(sim.one$tstat[1:nshrink],est.point$par) 
+est.simone.stat = make_stats_pub(sim.one$tstat[1:nshrink],est.point$par) 
 
 rbind(
   temp.truth %>% mutate(group = 'truth')
-  ,est.sim.one$par  %>% mutate(group = 'est')
+  ,est.simone$par  %>% mutate(group = 'est')
 ) 
 
 # plot
-p_point = hist_emp_vs_par(sim.one$tabs,est.sim.one$par)
+p_point = hist_emp_vs_par(sim.one$tabs,est.simone$par)
 plotme = cbind(
-  sim.one[1:nshrink,], est.sim.one$bias %>% as_tibble() %>% rename(bias = value)
+  sim.one[1:nshrink,], est.simone.stat$bias %>% as_tibble() %>% rename(bias = value)
 ) %>% 
   mutate(
     muhat = tstat*(1-bias)
   ) %>% 
   as_tibble()
 
-temptext = paste0('Ebias = ', round(mean(est.sim.one$bias),2))
+temptext = paste0('Ebias = ', round(mean(est.simone.stat$bias),2))
 p_bias = plotme %>% 
   ggplot(aes(x=muhat,y=mu)) + 
   geom_point() + 
   geom_abline(intercept = 0, slope = 1) +
-  annotate("text", x=10,y=1,label = temptext, size = 5)
+  annotate("text", x=10,y=1,label = temptext, size = 5) +
+  xlim(0,20)
 
 grid.arrange(p_point,p_bias, nrow = 1)
 
@@ -149,7 +154,7 @@ for (truthi in 1:nrow(parveclist)){
     print(paste0('truthi = ', truthi, ' of ', nrow(parveclist)))
     print(paste0('booti = ', booti))
     
-    samp = sim_pubcross_ar1(par.truth, par.truth$rho, nport)
+    samp = sim_pubcross(par.truth, par.truth$rho, nport)
     
     # estimate ===
     par.guess = par.guess.all[truthi, ]
