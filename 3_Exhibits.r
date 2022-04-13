@@ -60,12 +60,12 @@ tab.est
 
 write.csv(tab.est, 'output/tab-est-mu-sort.csv', row.names = F)
 
-# PLOT SKETCHES ====
+# PLOTS: T-HURDLES ====
 
 ## Model fit ====
 
 # the first boot is the point estimate
-est.point = bootall.wide[1,]
+est.point = bootall.wide[1,] %>% 
   mutate(
     pubfam = set.boot$model_fam$pubfam[1]
     , mufam = set.boot$model_fam$mufam[1]
@@ -88,7 +88,7 @@ bootall.long %>%
   labs(
     title = "Panel A",
     y = "Frequency",
-    x = "Estimate",
+    x = "Estimate"
   ) +
   theme_classic() +
   theme(
@@ -116,6 +116,8 @@ bootall.long %>%
     ) +
   coord_cartesian(xlim = c(0, 0.9), ylim = c(0.01, .20))
 
+ggsave('output/prop_illustration1.pdf', width = 4, height = 4, scale = 2)
+
 ## Prop 1: Panel B ====
 bootall.long %>% 
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
@@ -138,7 +140,7 @@ bootall.long %>%
   labs(
     title = "Panel B",
     y = "Frequency",
-    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|t| > 1.96\right)$)"),
+    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|t| > 1.96\right)$)")
   ) +
   theme_bw() +
   theme(
@@ -151,6 +153,7 @@ bootall.long %>%
     ) +
   coord_cartesian(ylim = c(0.01, .15))
 
+ggsave('output/prop_illustration2.pdf', width = 4, height = 4, scale = 2)
 
 ## t-hurdle: fdr = 5% ====
 
@@ -180,7 +183,7 @@ bootall.long %>%
   labs(
     title = "Panel A",
     y = "Frequency",
-    x = "t-hurdle for FDR = 5%",
+    x = "t-hurdle for FDR = 5%"
   ) +
   theme_bw() +
   theme(
@@ -210,6 +213,8 @@ bootall.long %>%
    ) +
   coord_cartesian(ylim = c(0.0215, .45))
 
+ggsave('output/t-fdr05.pdf', width = 4, height = 3, scale = 2)
+
 ## t-hurdle: fdr = 1% ====
 
 pif_cut = c(1/3,2/3)
@@ -237,7 +242,7 @@ bootall.long %>%
   labs(
     title = "Panel B",
     y = "Frequency",
-    x = "t-hurdle for FDR = 1%",
+    x = "t-hurdle for FDR = 1%"
   ) +
   theme_bw() +
   theme(
@@ -253,6 +258,10 @@ bootall.long %>%
   scale_fill_manual(values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1")) +
   coord_cartesian(ylim = c(0.0175, .375))
   
+ggsave('output/t-fdr01.pdf', width = 4, height = 3, scale = 2)
+
+# PLOTS: STRONGLY IDENTIFIED ====
+
 ## mean shrinkage ====
 
 pif_cut = c(1/3,2/3)
@@ -276,6 +285,7 @@ bootall.long %>%
   annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
   xlab('Mean bias (%)')
 
+ggsave('output/bias-mean.pdf', width = 4, height = 3, scale = 2)
 
 ## median shrinkage ====
 
@@ -299,3 +309,49 @@ bootall.long %>%
   ) + 
   annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
   xlab('Median bias (%)')
+
+ggsave('output/bias-median.pdf', width = 4, height = 3, scale = 2)
+
+
+## fdr pub mean ====
+
+pif_cut = c(1/3,2/3)
+breaks = seq(0,100,2.5)
+
+bootall.long %>% 
+  filter(stat %in% c('pif','fdrloc_mean')) %>% 
+  pivot_wider(names_from = stat) %>% 
+  mutate(
+    pif_cat = findInterval(pif, pif_cut)
+    , pif_cat = as.factor(pif_cat)
+    , fdrloc_mean = fdrloc_mean*100
+  )  %>% 
+  ggplot(
+    aes(x=fdrloc_mean, fill=pif_cat)
+  ) +
+  geom_histogram(breaks = breaks) +
+  xlab('Mean FDR among Published (%)')
+
+ggsave('output/fdr-pub-mean.pdf', width = 4, height = 3, scale = 2)
+
+
+## fdr pub median ====
+
+pif_cut = c(1/3,2/3)
+breaks = seq(0,100,2.5)
+
+bootall.long %>% 
+  filter(stat %in% c('pif','fdrloc_mean')) %>% 
+  pivot_wider(names_from = stat) %>% 
+  mutate(
+    pif_cat = findInterval(pif, pif_cut)
+    , pif_cat = as.factor(pif_cat)
+    , fdrloc_mean = fdrloc_mean*100
+  )  %>% 
+  ggplot(
+    aes(x=fdrloc_mean, fill=pif_cat)
+  ) +
+  geom_histogram(breaks = breaks) +
+  xlab('Median FDR among Published (%)')
+
+ggsave('output/fdr-pub-median.pdf', width = 4, height = 3, scale = 2)
