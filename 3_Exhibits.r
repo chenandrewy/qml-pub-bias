@@ -7,7 +7,7 @@ source('0_Settings.r')
 library(latex2exp) # MAybe add to settings file?
 
 # load bootstrap
-load('intermediate/boot a-priori-model started 2022-04-07 18-23.Rdata')
+load('intermediate/boot a-priori-model simple started 2022-04-11 13.Rdata')
 
 # rename tabs to be more clear (these are |t| from filtered cz data)
 cz_filt_tabs = tabs
