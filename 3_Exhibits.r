@@ -86,24 +86,24 @@ bootall.long %>%
     position = 'dodge',
     ) +
   labs(
-    title = "Panel A",
     y = "Frequency",
     x = "Estimate"
   ) +
   theme_classic() +
   theme(
     # Font sizes
-    plot.title = element_text(hjust = 0.5, size = 24),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
     
     # Tweaking legend
-    legend.position = c(0.85, 0.85),
+    legend.position = c(0.75, 0.85),
     legend.text.align = 0,
     legend.background = element_rect(fill = "white", color = "black"),
     legend.margin = margin(t = 5, r = 20, b = 5, l = 5), 
-    legend.key.size = unit(1, "cm")
+    legend.key.size = unit(2, "cm")
     ) +
   scale_fill_manual(
     values = c("pif" = "firebrick4", "pr_tgt_2" = "dodgerblue2"),
@@ -111,7 +111,7 @@ bootall.long %>%
     breaks = c("pif", "pr_tgt_2"),
     labels = c(
       TeX(r"($\hat{\pi}_F$)"),
-      TeX(r"($\hat{\textit{Pr}}\left( |t| > 1.96 \right)$)")
+      TeX(r"($\hat{\textit{Pr}}\left( | \ t \ | > 1.96 \right)$)")
       )
     ) +
   coord_cartesian(xlim = c(0, 0.9), ylim = c(0.01, .20))
@@ -135,19 +135,19 @@ bootall.long %>%
     fill = "dodgerblue2",
     bins = 30
     ) +
-  annotate(geom = 'text', x=0.5, y=0.125, label = TeX(r"(Raise hurdle \rightarrow)"), size = 7) + 
-  annotate(geom = 'text', x=-0.45, y=0.125, label = TeX(r"(\leftarrow Lower hurdle)"), size = 7) +
+  annotate(geom = 'text', x = 0.5, y = 0.125, label = TeX(r"(Raise hurdle \rightarrow)"), size = 10) + 
+  annotate(geom = 'text', x = -0.425, y = 0.125, label = TeX(r"(\leftarrow Lower hurdle)"), size = 10) +
   labs(
-    title = "Panel B",
     y = "Frequency",
-    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|t| > 1.96\right)$)")
+    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|\ t\ | > 1.96\right)$)")
   ) +
   theme_bw() +
   theme(
-    plot.title = element_text(hjust = 0.5, size = 24),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
     ) +
@@ -174,28 +174,28 @@ bootall.long %>%
     xintercept = qnorm(1-0.05/2),
     linetype = "dashed"
   ) +
-  annotate('text', x = 2.55, y = 0.4, label = 'Classical hurdle', size = 7) +
+  annotate('text', x = 2.8, y = 0.425, label = 'Classical hurdle', size = 10) +
   geom_histogram(
     aes(y = stat(count) / sum(count)),
     color = "black",
     breaks = breaks
   ) +
   labs(
-    title = "Panel A",
     y = "Frequency",
     x = "t-hurdle for FDR = 5%"
   ) +
   theme_bw() +
   theme(
-    plot.title = element_text(hjust = 0.5, size = 24),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
-    legend.text = element_text(size = 16),
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
     
-    legend.position = c(0.80, 0.65),
+    legend.position = c(0.8, 0.525),
     legend.text.align = 0,
     legend.background = element_rect(fill = "white", color = "black"),
-    legend.margin = margin(t = 5, r = 35, b = 5, l = 5),
+    legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
     legend.key.size = unit(1, "cm"),
     
     panel.grid.major = element_blank(),
@@ -206,9 +206,9 @@ bootall.long %>%
      name = NULL,
      breaks = c("0", "1", "2"),
      labels = c(
-       TeX(r"($\hat{\pi}_F < 0.1$)"),
-       TeX(r"($\hat{\pi}_F \in \left(0.1, 0.4 \right]$)"),
-       TeX(r"($\hat{\pi}_F > 0.4$)")
+       TeX(r"($\hat{\pi}_F < \ \frac{1}{3}$)"),
+       TeX(r"($\hat{\pi}_F \in \left( \ \frac{1}{3} \ , \ \frac{2}{3} \right]$)"),
+       TeX(r"($\hat{\pi}_F > \ \frac{1}{3}$)")
      )
    ) +
   coord_cartesian(ylim = c(0.0215, .45))
@@ -240,21 +240,21 @@ bootall.long %>%
     breaks = breaks
   ) +
   labs(
-    title = "Panel B",
     y = "Frequency",
     x = "t-hurdle for FDR = 1%"
   ) +
   theme_bw() +
   theme(
-    plot.title = element_text(hjust = 0.5, size = 24),
-    axis.title.x = element_text(size = 16),
-    axis.title.y = element_text(size = 16),
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
     
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
     legend.position = "none"
   ) +
-  annotate('text', x = 3.30, y = 0.3, label = 'Classical hurdle', size = 7) +
+  annotate('text', x = 1.60, y = 0.3, label = 'Classical hurdle', size = 10) +
   scale_fill_manual(values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1")) +
   coord_cartesian(ylim = c(0.0175, .375))
   
@@ -278,12 +278,47 @@ bootall.long %>%
   ggplot(
     aes(x=bias_mean, fill=pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
   geom_vline(
     xintercept = 26
   ) + 
-  annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
-  xlab('Mean bias (%)')
+  labs(
+    y = "Frequency",
+    x = "Mean bias (%)"
+  ) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
+    
+    legend.position = c(0.8, 0.525),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 8.5, b = 5, l = 5),
+    legend.key.size = unit(1, "cm"),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  scale_fill_manual(
+    values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1"),
+    name = NULL,
+    breaks = c("0", "1", "2"),
+    labels = c(
+      TeX(r"($\hat{\pi}_F < \ \frac{1}{3}$)"),
+      TeX(r"($\hat{\pi}_F \in \left( \ \frac{1}{3} \ , \ \frac{2}{3} \right]$)"),
+      TeX(r"($\hat{\pi}_F > \ \frac{1}{3}$)")
+    )
+  ) +
+  annotate('text', x = 14.5, y = 0.16, label = 'McLean-Pontiff bound', size = 10) +
+  coord_cartesian(xlim = c(5, 40), ylim = c(0.01, 0.18))
 
 ggsave('output/bias-mean.pdf', width = 4, height = 3, scale = 2)
 
@@ -303,15 +338,49 @@ bootall.long %>%
   ggplot(
     aes(x=bias_med, fill=pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
   geom_vline(
     xintercept = 26
-  ) + 
-  annotate('text', x= 30 ,y=20, label = 'McLean-Pontiff Bound') +
-  xlab('Median bias (%)')
+  ) +
+  labs(
+    y = "Frequency",
+    x = "Median bias (%)"
+  ) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
+    
+    legend.position = c(0.8, 0.525),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 8.5, b = 5, l = 5),
+    legend.key.size = unit(1, "cm"),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  scale_fill_manual(
+    values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1"),
+    name = NULL,
+    breaks = c("0", "1", "2"),
+    labels = c(
+      TeX(r"($\hat{\pi}_F < \ \frac{1}{3}$)"),
+      TeX(r"($\hat{\pi}_F \in \left( \ \frac{1}{3} \ , \ \frac{2}{3} \right]$)"),
+      TeX(r"($\hat{\pi}_F > \ \frac{1}{3}$)")
+    )
+  ) +
+  annotate('text', x = 14.5, y = 0.16, label = 'McLean-Pontiff bound', size = 10) +
+  coord_cartesian(xlim = c(5, 40), ylim = c(0.01, 0.18))
 
 ggsave('output/bias-median.pdf', width = 4, height = 3, scale = 2)
-
 
 ## fdr pub mean ====
 
@@ -329,11 +398,45 @@ bootall.long %>%
   ggplot(
     aes(x=fdrloc_mean, fill=pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
-  xlab('Mean FDR among Published (%)')
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
+  labs(
+    y = "Frequency",
+    x = "Mean FDR among Published (%)"
+  ) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
+    
+    legend.position = c(0.8, 0.525),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 8.5, b = 5, l = 5),
+    legend.key.size = unit(1, "cm"),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  scale_fill_manual(
+    values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1"),
+    name = NULL,
+    breaks = c("0", "1", "2"),
+    labels = c(
+      TeX(r"($\hat{\pi}_F < \ \frac{1}{3}$)"),
+      TeX(r"($\hat{\pi}_F \in \left( \ \frac{1}{3} \ , \ \frac{2}{3} \right]$)"),
+      TeX(r"($\hat{\pi}_F > \ \frac{1}{3}$)")
+    )
+  ) +
+  coord_cartesian(xlim = c(0, 40))
 
 ggsave('output/fdr-pub-mean.pdf', width = 4, height = 3, scale = 2)
-
 
 ## fdr pub median ====
 
@@ -351,7 +454,42 @@ bootall.long %>%
   ggplot(
     aes(x=fdrloc_mean, fill=pif_cat)
   ) +
-  geom_histogram(breaks = breaks) +
-  xlab('Median FDR among Published (%)')
+  geom_histogram(
+    aes(y = stat(count) / sum(count)),
+    color = "black",
+    breaks = breaks
+  ) +
+  labs(
+    y = "Frequency",
+    x = "Mean FDR among Published (%)"
+  ) +
+  theme_bw() +
+  theme(
+    axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 22),
+    
+    legend.position = c(0.8, 0.525),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 8.5, b = 5, l = 5),
+    legend.key.size = unit(1, "cm"),
+    
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  scale_fill_manual(
+    values = c("0" = "firebrick4", "1" = "dodgerblue2", "2" = "gold1"),
+    name = NULL,
+    breaks = c("0", "1", "2"),
+    labels = c(
+      TeX(r"($\hat{\pi}_F < \ \frac{1}{3}$)"),
+      TeX(r"($\hat{\pi}_F \in \left( \ \frac{1}{3} \ , \ \frac{2}{3} \right]$)"),
+      TeX(r"($\hat{\pi}_F > \ \frac{1}{3}$)")
+    )
+  ) +
+  coord_cartesian(xlim = c(0, 40))
 
 ggsave('output/fdr-pub-median.pdf', width = 4, height = 3, scale = 2)
