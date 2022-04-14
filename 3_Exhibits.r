@@ -4,7 +4,7 @@ rm(list = ls())
 
 source('0_Settings.r')
 
-library(latex2exp) # MAybe add to settings file?
+library(latex2exp) # Maybe add to settings file?
 
 # load bootstrap
 load('intermediate/boot a-priori-model simple started 2022-04-11 13.Rdata')
