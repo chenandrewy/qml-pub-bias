@@ -6,12 +6,11 @@ rm(list = ls())
 source('0_Settings.r')
 
 # choose files to import
-rdatalist = c(
-  'intermediate/boot robust-relax_pubpar started 2022-04-09 00-23.Rdata'
-  ,'intermediate/boot robust-pif_20 started 2022-04-09 01-14.Rdata'
-  ,'intermediate/boot robust-exp started 2022-04-09 02-11.Rdata'
-  ,'intermediate/boot robust-norm started 2022-04-09 03-04.Rdata'
-)
+rdatalist = dir('intermediate/', full.names = T) %>% 
+  as_tibble() %>% 
+  filter(grepl('boot robust-', value)) %>% 
+  pull(value)
+
 
 # IMPORT STATS ====
 nspec = length(rdatalist)
@@ -19,9 +18,6 @@ nspec = length(rdatalist)
 tab.all = tibble()
 for (speci in 1:nspec){
   load(rdatalist[speci])
-  
-  # rename tabs to be more clear (these are |t| from filtered cz data)
-  cz_filt_tabs = tabs
   
   # merge bootstrapped parameters and boot statistics in two formats
   bootall.wide = bootpar %>% 
@@ -40,19 +36,19 @@ for (speci in 1:nspec){
     filter(booti == 1)  %>% 
     select(-booti) %>% 
     rename(point = value) 
-  
-  # find standard errors
-  tab.se = bootall.long %>% 
+ 
+  # find mean, med, standard errors
+  tab.mstat = bootall.long %>% 
     group_by(stat) %>% 
     summarize(
-      sd = sd(value)
+      sd = sd(value), mean = mean(value), med = median(value)
     )
   
   # merge
   tab.both = tab.point %>% 
-    left_join(tab.se, by = 'stat') %>% 
+    left_join(tab.mstat, by = 'stat') %>% 
     mutate(name = bootname) %>% 
-    select(name, stat, point, sd) 
+    select(name, stat, point, sd, mean, med) 
   
   
   # append
@@ -60,34 +56,60 @@ for (speci in 1:nspec){
   
 } # for speci
 
+# check for duplicates
+namesdistinct = tab.all %>% distinct(name) %>% pull()
+if (length(namesdistinct) != length(rdatalist)){
+  rdatalist %>% print()
+  stop('duplicate robustness tests')
+}
+
 
 # CLEAN UP ====
 
+# select statistics and order
 statlist = tibble(
-  stat = c('pif','mua','siga','nua','pubpar1','h_fdr5','bias_mean')
+  stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean')
 ) 
-statlist$id = 1:dim(statlist)[1]
+statlist$statid = 1:dim(statlist)[1]
 
 
 tab.small = tab.all %>% 
-  inner_join(statlist, by = 'stat') %>% select(-id) 
-
-
-tab.wide = rbind(
-tab.small %>% select(-sd) %>% 
-  pivot_wider(
-    names_from = stat, values_from = c(point)
+  mutate(
+    name = substr(name, 8, nchar(name))
   ) %>% 
-  mutate(statname = 'point', statid = 1)
-  
-, tab.small %>% select(-point) %>% 
-  pivot_wider(
-    names_from = stat, values_from = c(sd)
+  inner_join(statlist, by = 'stat') 
+
+
+tab.wide = tab.small %>% 
+  select(name, statid, stat, med, sd) %>% 
+  pivot_longer(
+    cols = c(med,sd), names_to = 'mstat'
   ) %>% 
-  mutate(statname = 'sd', statid = 2)
+  arrange(name,statid,mstat) %>% 
+  select(-statid) %>% 
+  pivot_wider(
+    names_from = c(stat,mstat)
+  )
 
-) %>% 
-  arrange(name,statid) %>% 
-  select(name,statname, everything(), -statid)
+rownames(tab.wide) = tab.wide$name
 
-tab.wide 
+# reorder
+tab.sorted = tab.wide[
+  c('pif_20'
+    , 'relax_pubpar'
+    , 'pubpar_05'
+    , 'exp'
+    , 'tdist'
+    , 'raw-stair2'
+    , 'raw-logistic'
+  )
+  , 
+] %>% 
+  add_column(blank1 = NA, .after = 3)  %>% 
+  add_column(blank2 = NA, .after = 6) %>% 
+  add_column(blank3 = NA, .after = 9)
+
+tab.sorted
+
+# write to disk
+write.csv(tab.sorted, 'output/tab-robust.csv', row.names = F)

@@ -78,7 +78,14 @@ pub_prob = function(tt,par){
     
   } else if (par$pubfam == 'stair'){
     prob = (tt > 1.96 & tt <= 2.58)*par$pubpar1 +(tt>2.58)*1
-
+    
+  } else if (par$pubfam == 'stair2'){
+    prob = 
+      (tt > 0.00 & tt <= 1.50)*par$pubpar3 +
+      (tt > 1.50 & tt <= 1.96)*par$pubpar2 +
+      (tt > 1.96 & tt <= 2.58)*par$pubpar1 + 
+      (tt>2.58)*1
+    
   } else if (par$pubfam == 'trunc'){
     prob = 1*(tt > par$pubpar1)
     
@@ -185,7 +192,7 @@ make_mutrue_object = function(par){
   } else if (par$mufam == 'lognormraw'){
     
     mutrue.o =   Lnorm(par$mua, par$siga)
-
+    
     #   exp
   } else if (par$mufam == 'exp'){
     
@@ -250,7 +257,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
   
   # setup
   est_names = est.set$model_fam['base', is.na(est.set$model_fam['base',])] %>% colnames
-
+  
   # === optimization methods ===
   
   ## two-stage ====
@@ -368,7 +375,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
     for (i in 1:length(pif_grid)){
       
       # print(pif_grid[i])
-
+      
       # fix pif
       temp.par.guess = temp.par.guess %>% mutate(pif = pif_grid[i])
       
@@ -382,7 +389,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
         return = negloglike(tabs, par)
         
       } # end minme      
-
+      
       # test likelihood at guess
       parvecguess = par2parvec(temp.par.guess,temp_est_names)
       minme(parvecguess)    
@@ -399,7 +406,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
       # enforce bounds
       parvechat = pmax(temp_opt$solution, par2parvec(est.set$model_fam['lb',], temp_est_names)) 
       parvechat = pmin(parvechat, par2parvec(est.set$model_fam['ub',], temp_est_names))
-        
+      
       temp_parhat = parvec2par(parvechat,temp.par.guess,temp_est_names) %>% 
         mutate(negloglike = temp_opt$objective)
       
@@ -488,21 +495,21 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
     if (booti == 1){
       boottabs = tabs
       
-    # if second round, do either simple boot  
+      # if second round, do either simple boot  
     } else if (set.boot$boot_method == 'simple'){
-    
-      boottabs = tabs[id_all[,booti]]
-
       
-    # or semi-parameteric boot
+      boottabs = tabs[id_all[,booti]]
+      
+      
+      # or semi-parameteric boot
     } else if (set.boot$boot_method == 'semipar') {
       
-      simcross = sim_pubcross(par = bootpar[1, ], nport = 5000, seed = id_all[1, booti])
+      simcross = sim_pubcross(par = bootpar[1, ], nport = 5000, ndate = 350, seed = id_all[1, booti])
       tempn = min(dim(simcross)[1], length(tabs)) # use nport that is smaller of simcross or emp nport
       boottabs = simcross$tabs[1:tempn]
       
     } # end if booti == 1
-
+    
     par.guess = par.guess.all[booti,]    
     est = estimate(set.boot,boottabs,par.guess)
     
@@ -516,7 +523,7 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
         , fdrloc_mean = mean(temp$fdr_tabs)
         , fdrloc_med = median(temp$fdr_tabs)        
       )
-      
+    
     
     # store === 
     bootpar = rbind(bootpar, est$par %>% mutate(booti = booti))
@@ -642,10 +649,10 @@ import_cz = function(dl = F){
   
 } # end download_cz
 
-sim_cz_residuals = function(nport, seed = NULL){
+sim_cz_residuals = function(nport, ndate, seed = NULL){
   
   set.seed(seed)
-
+  
   # create matrix of returns ====
   ret = fread('output/pubpanel.csv') %>% 
     filter(
@@ -665,10 +672,10 @@ sim_cz_residuals = function(nport, seed = NULL){
   bootsignals = tibble(
     portid = 1:nport, signalname = sample(signallist, nport, replace = T)
   )
-
+  
   # bootstrap dates
   datelist = ret$date %>%  unique()
-  bootdates = sample(datelist, length(datelist), replace = T) %>% sort()
+  bootdates = sample(datelist, ndate, replace = T) %>% sort()
   
   # make bootstrapped dataset
   bootret = expand.grid(
@@ -677,7 +684,7 @@ sim_cz_residuals = function(nport, seed = NULL){
     as_tibble() %>% 
     left_join(bootsignals, by = c('portid') ) %>% 
     left_join(ret, by = c('signalname','date') )
-
+  
   return = bootret
   
 } # end sim_cz_residuals
@@ -686,7 +693,7 @@ sim_cz_residuals = function(nport, seed = NULL){
 
 
 # function for simulating truth, but only cross-sectional
-sim_pubcross = function(par, nport, eptype = 'ar1', rho = 0.5, seed = NULL){
+sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NULL){
   set.seed(seed)
   
   # cross-section of mus  
@@ -711,10 +718,10 @@ sim_pubcross = function(par, nport, eptype = 'ar1', rho = 0.5, seed = NULL){
       }
     } # end for i
     
-  #   bootstrapped from cz
+    #   bootstrapped from cz
   } else if (eptype == 'boot'){
     
-    bootret = sim_cz_residuals(nport)
+    bootret = sim_cz_residuals(nport = nport, ndate = ndate)
     
     bootsum = bootret %>% 
       group_by(portid) %>% 
@@ -722,7 +729,7 @@ sim_pubcross = function(par, nport, eptype = 'ar1', rho = 0.5, seed = NULL){
       summarize(
         m = mean(resid), vol = sd(resid), n = sum(!is.na(resid)), ep = m/vol*sqrt(n)
       )  
-  
+    
     ep = bootsum$ep
     
     # check correlations
@@ -785,7 +792,7 @@ make_stats_pub = function(t, par){
   
   mutrue.o = make_mutrue_object(par)
   tabs.o = make_tabs_object(par)
-
+  
   bias = numeric(length(t))
   fdr_tabs = numeric(length(t))
   for (i in 1:length(t)){
@@ -798,7 +805,7 @@ make_stats_pub = function(t, par){
   stats_pub = list(bias = bias, fdr_tabs = fdr_tabs)
   
   return = stats_pub
-
+  
 } # make_stats_pub
 
 
@@ -894,7 +901,7 @@ hist_emp_vs_par = function(tabs,par){
 
 
 
-# REFERENCE ====
+# REFERENCE AND COLORS ====
 check_lognorm_moments = function(mu,sig){
   mom = data.frame(
     mean = exp(mu + sig^2/2)
@@ -905,3 +912,9 @@ check_lognorm_moments = function(mu,sig){
   print(mom)
   
 } # end check_lognorm_moments
+
+
+niceblue = "#619CFF"
+nicegreen = "#00BA38"
+nicered = "#F8766D"
+

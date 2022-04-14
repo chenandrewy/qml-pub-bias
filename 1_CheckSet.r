@@ -1,7 +1,8 @@
 # 2022 04 Andrew: estimations on simulated data with correlations
 
 # Based off experiments/qml5*.ret
-
+# takes 20 minutes for n_miniboot = 10
+# 3 hours for n_miniboot = 100
 
 # ENVIRONMENT ====
 rm(list = ls())
@@ -16,7 +17,7 @@ set.check = list(
   , opt_list1 = opts.crs(maxeval = 200)
   , opt_list2 = opts.qa(xtol_rel = 1e-3)  
   , model_fam = data.frame(
-    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
+    mufam   = 'lognormraw' 
     , pif     = c(NA, 0.01, 0.99)
     , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
     , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
@@ -31,7 +32,7 @@ set.check = list(
 piflist = seq(0.1,0.9,length.out = 3)
 rholist = seq(0.1,0.9,length.out = 3)
 nportlist = c(200)
-n_miniboot = 10
+n_miniboot = 100
 
 
 # TEST POINT ESTIMATE ====
@@ -143,18 +144,16 @@ for (truthi in 1:nrow(parveclist)){
 
   ## simulate one ====
 
-  # load parvec 
+  # load parvec into truth
   par.truth[ , names(parveclist[ , 2:3])] = parveclist[truthi, 2:3]
   nport = parveclist[truthi, 1] %>% as.numeric()
   
-  # simulate
-  set.seed(958)
-  
+  # estimate n_miniboot times
   for (booti in 1:n_miniboot){
     print(paste0('truthi = ', truthi, ' of ', nrow(parveclist)))
     print(paste0('booti = ', booti))
     
-    samp = sim_pubcross(par.truth, par.truth$rho, nport)
+    samp = sim_pubcross(par.truth, nport, 'ar1', par.truth$rho, seed = booti*853)
     
     # estimate ===
     par.guess = par.guess.all[truthi, ]
@@ -251,6 +250,20 @@ stat_long
 bootmean_pif
 bootsd_pif
 
+# save to disk
+tab.check = rbind(
+  bootmean_pif %>% mutate(stat = 'mean')
+  , bootsd_pif %>% mutate(stat = 'sd')
+) %>% 
+  select(nport_truth, pif_truth, stat, everything()) %>% 
+  arrange(pif_truth, stat)
+
+write.csv(tab.check, 'output/tab-check.csv',row.names = F)
+
+
+
+
 toc_all = Sys.time()
 
 toc_all - tic_all
+

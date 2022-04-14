@@ -75,6 +75,7 @@ est.point = bootall.wide[1,] %>%
 hist_emp_vs_par(cz_filt_tabs,est.point)
 
 ## Prop 1: Panel A ====
+breaks = seq(0,1.0,0.05)
 bootall.long %>%
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
   ggplot(
@@ -84,6 +85,7 @@ bootall.long %>%
     aes(y = stat(count) / sum(count)),
     color = "black",
     position = 'dodge',
+    breaks = breaks
     ) +
   labs(
     y = "Frequency",
@@ -109,16 +111,17 @@ bootall.long %>%
     values = c("pif" = "firebrick4", "pr_tgt_2" = "dodgerblue2"),
     name = NULL,
     breaks = c("pif", "pr_tgt_2"),
-    labels = c(
-      TeX(r"($\hat{\pi}_F$)"),
-      TeX(r"($\hat{\textit{Pr}}\left( | \ t \ | > 1.96 \right)$)")
-      )
+    labels = unname(c(
+      TeX('$\\hat{\\pi}_F$'), 
+      TeX('$\\hat{Pr}(|t_i|>1.96)')
+      ))
     ) +
   coord_cartesian(xlim = c(0, 0.9), ylim = c(0.01, .20))
 
 ggsave('output/prop_illustration1.pdf', width = 4, height = 4, scale = 2)
 
 ## Prop 1: Panel B ====
+breaks = seq(-0.7,0.7,0.05)
 bootall.long %>% 
   filter(stat %in% c('pif','pr_tgt_2')) %>% 
   pivot_wider(names_from = stat, values_from = value) %>% 
@@ -133,13 +136,13 @@ bootall.long %>%
     aes(y = stat(count) / sum(count)),
     color = "black",
     fill = "dodgerblue2",
-    bins = 30
+    breaks = breaks
     ) +
-  annotate(geom = 'text', x = 0.5, y = 0.125, label = TeX(r"(Raise hurdle \rightarrow)"), size = 10) + 
-  annotate(geom = 'text', x = -0.425, y = 0.125, label = TeX(r"(\leftarrow Lower hurdle)"), size = 10) +
+  annotate(geom = 'text', x = 0.5, y = 0.125, label = TeX(r"(Raise hurdle $\\rightarrow$)"), size = 10) + 
+  annotate(geom = 'text', x = -0.425, y = 0.125, label = TeX(r"($\\leftarrow$ Lower hurdle)"), size = 10) +
   labs(
     y = "Frequency",
-    x = TeX(r"($\hat{\pi}_F - \hat{\textit{Pr}}\left(|\ t\ | > 1.96\right)$)")
+    x = TeX("$\\hat{\\pi}_F - \\hat{Pr}(|t_i|>1.96)$")
   ) +
   theme_bw() +
   theme(
