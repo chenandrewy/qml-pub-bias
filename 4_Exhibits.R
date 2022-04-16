@@ -121,61 +121,117 @@ tab.est
 
 write.csv(tab.est, 'output/tab-est.csv', row.names = F)
 
-# PLOTS: T-HURDLES ====
+# PLOTS: MODEL FIT ====
 
-## Model fit ====
+## estimate alternative model ====
 
-# the first boot is the point estimate
-par = bootall.wide[1,] %>% 
-  mutate(
-    pubfam = set.boot$model_fam$pubfam[1]
-    , mufam = set.boot$model_fam$mufam[1]
-  )
+set.alt = set.boot
+set.alt$model_fam$pif = 0.5
+par.guess = par.guess.all[1,] %>% mutate(pif = 0.5)
 
-# the following in-lined from hist_emp_vs_par() from 0_Settings.r
+temp = estimate(set.alt, cz_filt_tabs, par.guess, print_level = 0)
 
-# latent density
-tabs.o = make_tabs_object(par)
+est.alt = temp
 
-# observed density
-#   find denominator for conditional density
-#   integrate in pieces for accuracy
-denom1 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, 1.96)$value
-denom2 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 1.96, 6)$value  
-denom3 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 6, Inf)$value  
-denom = denom1 + denom2 + denom3
 
-f_obs = function(tt) d(tabs.o)(tt)*pub_prob(tt,par)/denom
+## setup ====
+# make f for point estimate
+par.point = bootall.wide[1,] 
 
-# setup
-edge = c(seq(0,15,1), 40, 100)
-freq = numeric(length(edge)-1)
+tabs.o = make_tabs_object(par.point)
+f_point = function(tt) d(tabs.o)(tt)
+
+# make f_obs for the alternative
+tabs.o.alt = make_tabs_object(est.alt$par)
+f_alt = function(tt) d(tabs.o.alt)(tt)
+
+# integrate to find hist frequencies
+delta.m = 0.1
+edge = c(seq(0,15,delta.m))
+mids = edge[1:length(edge)-1] + delta.m/2
+freq.point = numeric(length(edge)-1)
+freq.alt = freq.point
 for (i in 2:length(edge)){
   a = edge[i-1]; b = edge[i]
-  freq[i-1] = integrate(f_obs, a, b)$value
+  freq.point[i-1] = integrate(f_point, a, b)$value
+  freq.alt[i-1] = integrate(f_alt, a, b)$value 
 }
 
-hemp = hist(tabs, edge, plot = F)
+# assemble into tibble
+dat.point = tibble(mids = mids, freq = freq.point, group = 'point')
+dat.alt = tibble(mids = mids, freq = freq.alt, group = 'alt')
 
-plotme = tibble(
-  group = 'emp', tabs = hemp$mids, freq = hemp$density
-) %>% rbind(
-  tibble(
-    group = 'mod', tabs = hemp$mids, freq = freq    
+# make empirical data
+temptabs = import_cz(dl = F) %>% pull(tabs)
+
+delta.emp = 0.5
+edge.emp = seq(0,15,delta.emp)
+hemp = hist(temptabs, edge.emp, plot = F)
+dat.emp = tibble(mids = hemp$mids, freq = hemp$count, group = 'emp')
+
+# rescale
+dat.all = rbind(dat.point,dat.alt) %>% rbind(dat.emp)
+
+scale.df = dat.all %>% filter(mids >= 3) %>% 
+  group_by(group) %>%  
+  summarize(tot = sum(freq)) %>% 
+  pivot_wider(names_from = group, values_from = tot)
+
+dat.all = dat.all %>% 
+  mutate(
+    freq = if_else(group == 'point', freq*scale.df$emp/scale.df$point * delta.emp/ delta.m, freq)
+    , freq = if_else(group == 'alt', freq*scale.df$emp/scale.df$alt * delta.emp/ delta.m, freq)
   )
-) %>% 
-  filter(!is.na(freq))
 
-xmin = 0; xmax = 15
-plotme %>% 
-  filter(tabs >= xmin, tabs <= xmax) %>% 
-  ggplot(aes(x=tabs,y=freq,group=group,color=group)) +
-  geom_line() +
-  geom_point(size=3) +
-  theme_minimal() +
-  scale_color_manual(values = c('blue','red')) + 
-  theme(legend.position = c(0.8,0.8)) +
-  xlim(xmin,xmax)  
+
+## plot ====
+
+dat.all %>% filter(group == 'emp') %>% 
+  ggplot(
+    aes(x=mids, y=freq)
+  ) +
+  geom_bar(aes(fill = 'emp'), stat = 'identity') +
+  geom_line(
+    data = dat.all %>% filter(group == 'alt')
+    , aes(color = 'alt')
+    , linetype = 'dashed'
+    , size = 1
+    ) +  
+  geom_line(
+    data = dat.all %>% filter(group == 'point')
+    , aes(color = 'point')
+    , size = 1
+    ) +
+  scale_fill_manual(
+    values = c('emp' = 'gray'), name = NULL
+    , labels = c('Chen-Zimmermann Data')
+  ) +
+  scale_color_manual(
+    breaks = c('point','alt')
+    , values = c(
+      'point' = MATBLUE
+      , 'alt' = MATRED)
+    , labels = c(
+      TeX('Point Estimate ($\\widehat{\\pi}_F = 0.01$)')
+      , TeX('Estimate Fixing $\\pi_F = $0.50')
+    )
+  ) +
+  chen_theme +
+  theme(
+    legend.position = c(0.70, 0.65)
+    , legend.margin = margin(t = 0, r = 5, b = 5, l = 5)
+    , legend.key.size = unit(1, 'cm')
+    , legend.text = element_text(size = 20)
+    , panel.border = element_rect(colour = "black", fill=NA, size=1)
+    , axis.ticks.length=unit(0.2, "cm")
+  ) + 
+  xlab('|t-statistic|') + ylab('Number of Predictors') +
+  coord_cartesian(xlim = c(0,15), ylim = c(0, 80))  +
+  scale_x_continuous(breaks = seq(0,15,2.5))
+
+ggsave(filename = 'output/model-fit.pdf', width = 4, height = 3, scale = 2.5, device = cairo_pdf)
+
+# PLOTS: T-HURDLES ====
 
 
 ## Prop 1: Panel A ====

@@ -86,6 +86,13 @@ pub_prob = function(tt,par){
       (tt > 1.96 & tt <= 2.58)*par$pubpar1 + 
       (tt>2.58)*1
     
+  } else if (par$pubfam == 'stair3'){
+    prob = 
+      (tt > 0.00 & tt <= 1.00)*par$pubpar3 +
+      (tt > 1.00 & tt <= 1.96)*par$pubpar2 +
+      (tt > 1.96 & tt <= 2.58)*par$pubpar1 + 
+      (tt>2.58)*1    
+    
   } else if (par$pubfam == 'trunc'){
     prob = 1*(tt > par$pubpar1)
     
@@ -858,7 +865,7 @@ hist_emp_vs_par = function(tabs,par){
   
   # observed density
   #   find denominator for conditional density
-  #   integrate in two pieces for accuracy
+  #   integrate in pieces for accuracy
   denom1 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 0, 1.96)$value
   denom2 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 1.96, 6)$value  
   denom3 = integrate(function (tt) d(tabs.o)(tt)*pub_prob(tt,par), 6, Inf)$value  
@@ -901,20 +908,38 @@ hist_emp_vs_par = function(tabs,par){
 
 
 
-# REFERENCE AND COLORS ====
-check_lognorm_moments = function(mu,sig){
-  mom = data.frame(
-    mean = exp(mu + sig^2/2)
-    , var = (exp(sig^2)+2)*exp(2*mu+sig^2)
-    , median = exp(mu)
-  )
-  
-  print(mom)
-  
-} # end check_lognorm_moments
+# FIGURES ====
+
+library(latex2exp)
+library(extrafont)
 
 
-niceblue = "#619CFF"
-nicegreen = "#00BA38"
-nicered = "#F8766D"
 
+MATBLUE = rgb(0,0.4470,0.7410)
+MATRED = rgb(0.8500, 0.3250, 0.0980)
+MATYELLOW = rgb(0.9290, 0.6940, 0.1250)
+
+NICEBLUE = "#619CFF"
+NICEGREEN = "#00BA38"
+NICERED = "#F8766D"
+
+chen_theme =   theme_classic() +
+  theme(
+    text = element_text(family = "Palatino Linotype")
+    , panel.border = element_rect(colour = "black", fill=NA, size=1)    
+    
+    # Font sizes
+    , axis.title.x = element_text(size = 26),
+    axis.title.y = element_text(size = 26),
+    axis.text.x = element_text(size = 22),
+    axis.text.y = element_text(size = 22),
+    legend.text = element_text(size = 18),
+    
+    # Tweaking legend
+    legend.position = c(0.7, 0.8),
+    legend.text.align = 0,
+    legend.background = element_rect(fill = "white", color = "black"),
+    legend.margin = margin(t = 5, r = 20, b = 5, l = 5), 
+    legend.key.size = unit(1.5, "cm")
+    , legend.title = element_blank()    
+  ) 

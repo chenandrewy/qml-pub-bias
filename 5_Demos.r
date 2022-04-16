@@ -3,19 +3,15 @@
 # ENVIRONMENT ====
 
 rm(list=ls())
+
+
 source('0_Settings.r')
-library(latex2exp)
-
-detach("package:distr", unload=TRUE) # doesn't like n()
-
-MATBLUE = rgb(0,0.4470,0.7410)
-MATRED = rgb(0.8500, 0.3250, 0.0980)
 
 nsim = 200
 nfac = 1e3
 
 makehist = function(dat, edge = seq(0,10, 0.5)){
-  tmid = edge[1:(length(edge)-1)] + 0.25
+  tmid = edge[1:(length(edge)-1)] + 0.5*(edge[2]-edge[1])
   hdat2 = data.frame(
     bin = 1:length(tmid), tmid
   )
@@ -28,7 +24,7 @@ makehist = function(dat, edge = seq(0,10, 0.5)){
     ) %>% 
     group_by(group,bin) %>% 
     summarize(
-      n = n()/nsim
+      n = dplyr::n()/nsim
     ) %>% 
     left_join(hdat2)  
 } # end function makehist
@@ -37,9 +33,7 @@ makehist = function(dat, edge = seq(0,10, 0.5)){
 
 # translated from main_demo_intro.m and main-intuition.R on 2022 04
 
-## setup ====
-
-
+## shared setup ====
 
 # parameters hand-selected so that pr_tgt2 = 0.5 and pr_tgt3_tgt2 = 0.5
 # too lazy too code up numerical solver
@@ -68,7 +62,7 @@ fdr = dat %>% filter(t>1.96) %>%
 
 hdat= makehist(dat)
 
-plot = ggplot(hdat, aes(x=tmid, y=n, fill=group)) + 
+ggplot(hdat, aes(x=tmid, y=n, fill=group)) + 
   geom_bar(stat='identity', position='stack') +
   geom_vline(xintercept = 1.96, size = 1) + 
   labs(title = "", x = "|t-statistic|", y = "Number of Factors") +
@@ -77,37 +71,34 @@ plot = ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
     values = c(MATBLUE, MATRED),
     name = ""
   ) +
-  theme_light() +
-  theme(
-    legend.position = c(0.75, 0.75)
-    , legend.title = NULL
-    , panel.grid.minor = element_blank()
-    , panel.grid.major = element_blank()
-    , legend.key.size = unit(0.4,'cm')
-  ) +
+  chen_theme +
   annotate(
     geom = "text",
     label = "t-hurdle = 1.96",
-    x = 4.2,
-    y = 375
-    , size = 3.2
+    x = 4, y = 375, size = 6
   ) +
-  geom_segment(aes(x = 4, y = 150, xend = 2.3, yend = 6),
+  geom_segment(aes(x = 5.7, y = 95, xend = 2.3, yend = 15),
              arrow = arrow(length = unit(0.03, "npc")),
              colour = "black", size = 0.3
   ) +
   annotate(
     geom = "text",
     label = paste0("FDR = ", fdr$fdr, '%'),
-    x = 5.5,
-    y = 160
-    , size = 3.2    
+    x = 7, y = 100
+    , size = 6
   )  +
-  scale_x_continuous(breaks = seq(0,10,2))
+  scale_x_continuous(breaks = seq(0,10,2)) +
+  theme(
+    legend.position = c(0.75, 0.75)
+    , legend.key.size = unit(0.6,'cm')
+    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.text = element_text(size = 20)    
+  ) 
+  
 
-plot
 
-ggsave('output/intro-realistic.pdf', width = 2, height = 2, scale = 1.5)
+
+ggsave('output/intro-realistic.pdf', width = 4, height = 4, scale = 1.5, device = cairo_pdf)
 
 
 
@@ -129,20 +120,13 @@ plot = ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
     values = c(MATRED),
     name = ""
   ) +
-  theme_light() +
-  theme(
-    legend.position = c(0.75, 0.75)
-    , legend.title = NULL
-    , panel.grid.minor = element_blank()
-    , panel.grid.major = element_blank()
-    , legend.key.size = unit(0.4,'cm')    
-  ) +
+  chen_theme +
   annotate(
     geom = "text",
     label = "t-hurdle = 1.96",
     x = 2.9,
     y = 375
-    , size = 3.2
+    , size = 6
   ) +
   geom_segment(aes(x = 2.7, y = 70, xend = 2.3, yend = 20),
                arrow = arrow(length = unit(0.03, "npc")),
@@ -151,14 +135,18 @@ plot = ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
   annotate(
     geom = "text",
     label = paste0("FDR = ", fdr$fdr, '%'),
-    x = 3.5,
-    y = 80
-    , size = 3.2
-  ) 
+    x = 3.5, y = 80, size = 6
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75)
+    , legend.key.size = unit(0.6,'cm')
+    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.text = element_text(size = 20)    
+  )   
 
 plot
 
-ggsave('output/intro-wrong.pdf', width = 2, height = 2, scale = 1.5)
+ggsave('output/intro-wrong.pdf', width = 4, height = 4, scale = 1.5, device = cairo_pdf)
 
 
 
@@ -179,7 +167,6 @@ v = rnorm(nfac*nsim, 0, sigv)
 c = rnorm(nfac*nsim, 0, sigc)
 u = c+v
 
-
 # alt model first
 lambda_mu = 0.55/(15/sqrt(12)/sqrt(240)) # p 26, 29
 mutrue = rexp(n = nfac*nsim, rate = 1/lambda_mu)
@@ -191,8 +178,8 @@ mumix[type == F] = 0
 
 
 dat = rbind(
-  tibble(t = mumix + u, group = 'hlz')  
-  , tibble(t = mutrue + u, group = 'alt')
+  tibble(mu = mumix, t = mumix + u, group = 'hlz')  
+  , tibble(mu = mutrue, t = mutrue + u, group = 'alt')
 ) %>% 
 mutate(
   group = factor(group, levels = c('hlz','alt'))
@@ -205,7 +192,7 @@ mutate(
 sumdat = dat %>% 
   group_by(group) %>% 
   filter(t>2.57) %>% 
-  summarize(n=n())
+  summarize(n=dplyr::n())
 
 npub_alt_hlz = sumdat$n[2]/sumdat$n[1]
 
@@ -227,7 +214,7 @@ plot = ggplot(hdat_norm, aes(x=tmid, y=n, fill=group)) +
   labs(title = "", x = "|t-statistic|", y = "Density") +
   scale_fill_manual(
     labels = unname(TeX(c(
-      "Model 1: HLZ's Baseline ($\\hat{\\pi}_F=0.44)$"
+      "Model 1: HLZ's Baseline ($\\widehat{\\pi}_F=0.44)$"
       ,"Model 2: HLZ's Baseline w/ $\\pi_F=0$"
       ))), 
     values = c(MATBLUE, MATRED),
@@ -244,6 +231,7 @@ plot = ggplot(hdat_norm, aes(x=tmid, y=n, fill=group)) +
     , panel.grid.major = element_blank()
     , panel.border = element_blank()
     , axis.line = element_line(colour = 'black')
+    ,     text = element_text(family = "Palatino Linotype")
   ) +
   geom_vline(xintercept = 2.57, size = 1, color = 'red') +  
   annotate(
@@ -260,5 +248,5 @@ plot = ggplot(hdat_norm, aes(x=tmid, y=n, fill=group)) +
 
 plot
 
-ggsave('output/hlz-demo.pdf', width = 3, height = 2, scale = 1.5)
+ggsave('output/hlz-demo.pdf', width = 3, height = 2, scale = 1.5, device = cairo_pdf)
 

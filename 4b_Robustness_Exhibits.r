@@ -17,6 +17,8 @@ nspec = length(rdatalist)
 
 tab.all = tibble()
 for (speci in 1:nspec){
+  
+  # speci = 8
   load(rdatalist[speci])
   
   # merge bootstrapped parameters and boot statistics in two formats
@@ -24,12 +26,17 @@ for (speci in 1:nspec){
     left_join(bootstat, by = 'booti') %>% 
     as_tibble()
   
-  bootall.long = bootall.wide %>% 
+  # clean up, multiply 100 if it's nice
+  bootall.long =  bootall.wide %>% 
     select(-c(mufam,pubfam)) %>% 
     pivot_longer(
       cols = c(-booti)
     ) %>% 
-    rename(stat = name)
+    rename(stat = name) %>% 
+    mutate(
+      value = if_else(grepl('bias',stat), value*100, value)
+      , value = if_else(grepl('fdrloc',stat), value*100, value)
+    )
   
   # find point estimates
   tab.point = bootall.long %>% 
@@ -95,13 +102,17 @@ rownames(tab.wide) = tab.wide$name
 
 # reorder
 tab.sorted = tab.wide[
-  c('pif_20'
-    , 'relax_pubpar'
+  c(
+    'raw-stair2'
+    , 'raw-stair3'
+    , 'raw-logistic'    
+    , 'pif_20'
     , 'pubpar_05'
+    , 'relax_pubpar'    
+    , 'logistic'        
     , 'exp'
     , 'tdist'
-    , 'raw-stair2'
-    , 'raw-logistic'
+    , 'mix_norm'
   )
   , 
 ] %>% 
@@ -109,7 +120,8 @@ tab.sorted = tab.wide[
   add_column(blank2 = NA, .after = 6) %>% 
   add_column(blank3 = NA, .after = 9)
 
-tab.sorted
+tab.sorted %>% print()
 
 # write to disk
 write.csv(tab.sorted, 'output/tab-robust.csv', row.names = F)
+

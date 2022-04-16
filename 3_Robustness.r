@@ -15,8 +15,8 @@ nbootrobust = 100
 
 # mixture normal
 
-# raw t-stat, logistic pub prob
-set.raw_logistic = list(
+# raw t-stat, staircase pub prob w/ cuts at 1.0 and 2.0
+set.raw_stair3 = list(
   opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
   , opt_list1 = opts.crs(maxeval = 200)
   , opt_list2 = opts.qa(xtol_rel = 1e-3)  
@@ -25,14 +25,16 @@ set.raw_logistic = list(
     , pif     = c(NA, 0.01, 0.99)
     , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
     , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
-    , pubfam  = 'logistic' 
-    , pubpar1 = c(NA,  0 , 3) # midpoint
-    , pubpar2 = c(NA,  1 , 20)    # slope
+    , pubfam  = 'stair3' # two step stair alt
+    , pubpar1 = c(NA,  0 , 1) # prob for t in 2 to 2.6
+    , pubpar2 = c(NA,  0 , 1) # prob for 1.0 to 2
+    , pubpar3 = c(NA,  0 , 1) # prob for 0 to 1.5
     , row.names  = c('base','lb','ub')  
   )  
-  , name = 'robust-raw-logistic'  
+  , name = 'robust-raw-stair3'  
   , boot_method = 'simple' # simple or semipar  
 )
+
 
 # raw t-stat, staircase pub prob
 set.raw_stair2 = list(
@@ -51,6 +53,27 @@ set.raw_stair2 = list(
     , row.names  = c('base','lb','ub')  
   )  
   , name = 'robust-raw-stair2'  
+  , boot_method = 'simple' # simple or semipar  
+)
+
+
+
+# raw t-stat, logistic pub prob
+set.raw_logistic = list(
+  opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
+  , opt_list1 = opts.crs(maxeval = 200)
+  , opt_list2 = opts.qa(xtol_rel = 1e-3)  
+  , model_fam = data.frame(
+    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
+    , pif     = c(NA, 0.01, 0.99)
+    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
+    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
+    , pubfam  = 'logistic' 
+    , pubpar1 = c(NA,  0 , 3) # midpoint
+    , pubpar2 = c(NA,  1 , 20)    # slope
+    , row.names  = c('base','lb','ub')  
+  )  
+  , name = 'robust-raw-logistic'  
   , boot_method = 'simple' # simple or semipar  
 )
 
@@ -192,27 +215,13 @@ set.logistic = list(
 )
 
 
-# pif_grid
-set.pif_grid = list(
-  opt_method = 'pif-grid' # 'two-stage' or 'crs-only' or 'pif-grid'
-  , opt_list  = opts.qa(xtol_rel = 1e-3)  
-  , model_fam = data.frame(
-    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
-    , pif     = c(NA, 0.01, 0.99)
-    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
-    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
-    , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'  
-    , pubpar1 = c(NA,  1/3, 2/3)
-    , row.names  = c('base','lb','ub')  
-  )  
-  , name = 'robust-pif_grid'    
-  , boot_method = 'simple' # simple or semipar
-)
+
 
 # compile
 setlist = list(
   set.raw_logistic
   , set.raw_stair2
+  , set.raw_stair3
   , set.relax_pubpar  
   , set.pubpar_05
   , set.pif_20  
@@ -220,10 +229,12 @@ setlist = list(
   , set.tdist
   , set.mix_norm
   , set.logistic
-  , set.pif_grid
 )
 
-sapply(setlist,"[[",'name') %>% print()
+namelist = sapply(setlist,"[[",'name') 
+print(namelist)
+
+unique(namelist) 
 
 # BOOTSTRAP! ====
 
