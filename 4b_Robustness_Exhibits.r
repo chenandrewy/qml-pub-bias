@@ -105,8 +105,8 @@ rownames(tab.wide) = tab.wide$name
 tab.sorted = tab.wide[
   c(
     'raw-stair2'
-    , 'raw-stair3'
-    , 'raw-logistic'    
+    , 'raw-stair2-restrict'
+    , 'pif_10'
     , 'pif_20'
     , 'pubpar_05'
     , 'relax_pubpar'    
@@ -132,7 +132,7 @@ write.csv(tab.sorted, 'output/tab-robust.csv', row.names = F)
 print(rdatalist)
 
 # select a spec
-speci = 4
+speci = 2
 
 load(rdatalist[speci])
 
@@ -143,4 +143,8 @@ prob = pub_prob(tt,par)
 
 plot(tt,prob)
 
-hist(bootpar$pif)
+hist(bootpar$pubpar2)
+
+plot(bootpar$pif, bootpar$pubpar1)
+
+par

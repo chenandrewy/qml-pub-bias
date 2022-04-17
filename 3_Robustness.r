@@ -15,26 +15,6 @@ nbootrobust = 200
 
 # mixture normal
 
-# raw t-stat, staircase pub prob w/ cuts at 1.0 and 2.0
-set.raw_stair3 = list(
-  opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
-  , opt_list1 = opts.crs(maxeval = 200)
-  , opt_list2 = opts.qa(xtol_rel = 1e-3)  
-  , model_fam = data.frame(
-    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
-    , pif     = c(NA, 0.01, 0.99)
-    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
-    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
-    , pubfam  = 'stair3' # two step stair alt
-    , pubpar1 = c(NA,  0 , 1) # prob for t in 2 to 2.6
-    , pubpar2 = c(NA,  0 , 1) # prob for 1.0 to 2
-    , pubpar3 = c(NA,  0 , 1) # prob for 0 to 1.5
-    , row.names  = c('base','lb','ub')  
-  )  
-  , name = 'robust-raw-stair3'  
-  , boot_method = 'simple' # simple or semipar  
-)
-
 
 # raw t-stat, staircase pub prob
 set.raw_stair2 = list(
@@ -56,6 +36,26 @@ set.raw_stair2 = list(
   , boot_method = 'simple' # simple or semipar  
 )
 
+
+# raw t-stat, staircase pub prob
+set.raw_stair2_restrict = list(
+  opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
+  , opt_list1 = opts.crs(maxeval = 200)
+  , opt_list2 = opts.qa(xtol_rel = 1e-3)  
+  , model_fam = data.frame(
+    mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
+    , pif     = c(NA, 0.01, 0.99)
+    , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
+    , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
+    , pubfam  = 'stair2' # two step stair
+    , pubpar1 = c(NA,  1/3 , 2/3) # prob for t in 2 to 2.6
+    , pubpar2 = c(NA,  0   , 1/3) # prob for 1.5 to 2
+    , pubpar3 = c(NA,  0   , 1/3) # prob for 0 to 1.5
+    , row.names  = c('base','lb','ub')  
+  )  
+  , name = 'robust-raw-stair2-restrict'  
+  , boot_method = 'simple' # simple or semipar  
+)
 
 
 
@@ -218,8 +218,8 @@ set.logistic = list(
 
 # compile
 setlist = list(
-  set.raw_stair2
-  , set.raw_stair3
+  set.raw_stair2_restrict
+  , set.raw_stair2
   , set.relax_pubpar  
   , set.pubpar_05
   , set.logistic  
