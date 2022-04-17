@@ -213,29 +213,30 @@ datc.all %>% filter(group == 'emp') %>%
   ) +
   geom_bar(aes(fill = 'emp'), stat = 'identity') +
   geom_line(
-    data = datf.all %>% filter(group == 'alt')
-    , aes(color = 'alt')
-    , linetype = 'dashed'
+    data = datf.all 
+    , aes(color = group, linetype = group)
     , size = 1
   ) +  
-  geom_line(
-    data = datf.all %>% filter(group == 'point')
-    , aes(color = 'point')
-    , size = 1
-  ) +
   scale_fill_manual(
     values = c('emp' = 'gray'), name = NULL
     , labels = c('Chen-Zimmermann Data')
   ) +
   scale_color_manual(
-    breaks = c('point','alt')
+    name = NULL
     , values = c(
-      'point' = MATBLUE
-      , 'alt' = MATRED)
+      'point' = MATBLUE, 'alt' = MATRED)
     , labels = c(
       TeX('Point Estimate ($\\widehat{\\pi}_F = 0.01$)')
-      , TeX(paste0('Estimate Fixing $\\pi_F = $', round(pif_fix,2)))
+      , TeX(paste0('Estimate Fixing $\\pi_F = $', '2/3'))
     )
+  ) +
+  scale_linetype_manual(
+    name = NULL
+    , values = c('point' = 'solid', 'alt' = 'dashed')
+    , labels = c(
+      TeX('Point Estimate ($\\widehat{\\pi}_F = 0.01$)')
+      , TeX(paste0('Estimate Fixing $\\pi_F = $', '2/3'))
+    )    
   ) +
   chen_theme +
   theme(
@@ -259,6 +260,7 @@ p0 = datc.all %>%
   filter(group != 'emp') %>% 
   mutate(
     group = paste0(group,'c')
+    , group = factor(group, levels = c('pointc','altc'))
   ) %>% 
   mutate(freq = freqtrue) %>% 
   ggplot( 
@@ -269,7 +271,7 @@ p0 = datc.all %>%
     , aes(fill = group)
   ) +
   geom_line(
-    data = datf.all
+    data = datf.all %>% mutate(group = factor(group, levels = c('point','alt')))
     , aes(color = group, linetype = group)
     , size = 1
   )   
@@ -281,7 +283,7 @@ p0 +
     , values = c('pointc' = MATBLUE, 'altc' = MATRED)
     , labels = c(
       TeX('True Predictors ($\\widehat{\\pi}_F = 0.01$)')
-      , TeX(paste0('True Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+      , TeX(paste0('True Predictors ($\\pi_F = $', '2/3', ')' ) )
     )
   ) +  
   scale_linetype_manual(
@@ -289,7 +291,7 @@ p0 +
     , values = c('point' = 'solid', 'alt' = 'dashed')
     , labels = c(
       TeX('All Predictors ($\\widehat{\\pi}_F = 0.01$)')
-      , TeX(paste0('All Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+      , TeX(paste0('All Predictors ($\\pi_F = $', '2/3', ')' ) )
     )
   ) +
   scale_color_manual(
@@ -297,7 +299,7 @@ p0 +
     , values = c('point' = MATBLUE, 'alt' = MATRED)    
     , labels = c(
       TeX('All Predictors ($\\widehat{\\pi}_F = 0.01$)')
-      , TeX(paste0('All Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+      , TeX(paste0('All Predictors ($\\pi_F = $', '2/3', ')' ) )
     )
   ) +  
   chen_theme +
