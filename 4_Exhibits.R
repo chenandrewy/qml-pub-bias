@@ -1,12 +1,7 @@
 # SETUP ====
 
-
-
-# rm(list = ls())
+rm(list = ls())
 source('0_Settings.r')
-
-
-
 
 
 ## Font setup ====
@@ -45,9 +40,6 @@ bootalt.long = bootalt.wide %>%
 # load main bootstrap
 load('intermediate/boot a-priori-model simple started 2022-04-15 03.Rdata')
 
-# rename tabs to be more clear (these are |t| from filtered cz data)
-cz_filt_tabs = tabs
-
 # merge bootstrapped parameters and boot statistics in two formats
 bootall.wide = bootpar %>% 
   mutate(
@@ -65,6 +57,22 @@ bootall.long = bootall.wide %>%
   ) %>% 
   rename(stat = name)
 
+# load empirical data
+cz_raw = import_cz(dl = F)
+cz_filt = import_cz(dl = F) %>% filter(tabs > 1.96)
+
+## estimate alternative model ====
+pif_fix = 2/3
+
+set.alt = set.boot
+set.alt$model_fam$pif = pif_fix
+par.guess = par.guess.all[1,] %>% mutate(pif = pif_fix)
+
+temp = estimate(set.alt, cz_filt$tabs, par.guess, print_level = 0)
+
+est.alt = temp
+
+  
 # TABLES ====
 
 ## Simple tables ====
@@ -123,85 +131,98 @@ write.csv(tab.est, 'output/tab-est.csv', row.names = F)
 
 # PLOTS: MODEL FIT ====
 
-## estimate alternative model ====
-
-set.alt = set.boot
-set.alt$model_fam$pif = 0.5
-par.guess = par.guess.all[1,] %>% mutate(pif = 0.5)
-
-temp = estimate(set.alt, cz_filt_tabs, par.guess, print_level = 0)
-
-est.alt = temp
-
-
 ## setup ====
-# make f for point estimate
+
+# choices
+temptabs = cz_raw$tabs # not sure if we want raw or filt here
+edge.c = seq(0, 15, 0.5) # coarse grid
+edge.f = seq(0, 15, 0.1) # fine grid
+tgood = 2.6
+
+# make distr objects for point
 par.point = bootall.wide[1,] 
-
 tabs.o = make_tabs_object(par.point)
-f_point = function(tt) d(tabs.o)(tt)
+tabstrue.o = abs(make_mutrue_object(par.point) + Norm(0,1))
 
-# make f_obs for the alternative
+# make distr objects for alternative
 tabs.o.alt = make_tabs_object(est.alt$par)
-f_alt = function(tt) d(tabs.o.alt)(tt)
+tabstrue.o.alt = abs(make_mutrue_object(est.alt$par) + Norm(0,1))
 
-# integrate to find hist frequencies
-delta.m = 0.1
-edge = c(seq(0,15,delta.m))
-mids = edge[1:length(edge)-1] + delta.m/2
-freq.point = numeric(length(edge)-1)
-freq.alt = freq.point
-for (i in 2:length(edge)){
-  a = edge[i-1]; b = edge[i]
-  freq.point[i-1] = integrate(f_point, a, b)$value
-  freq.alt[i-1] = integrate(f_alt, a, b)$value 
-}
+# == datc: hist freq on coarse grid ==
+tempedge = edge.c
+tempmids = tempedge[1:length(tempedge)-1] + diff(tempedge)[1]/2
 
-# assemble into tibble
-dat.point = tibble(mids = mids, freq = freq.point, group = 'point')
-dat.alt = tibble(mids = mids, freq = freq.alt, group = 'alt')
+# empirical hists
+hemp = hist(temptabs, tempedge, plot = F)
+datc.emp = tibble(
+  mids = tempmids
+  , freq = hemp$count
+  , freqtrue = NA
+  , group = 'emp'
+)
 
-# make empirical data
-temptabs = import_cz(dl = F) %>% pull(tabs)
+# model hists
+tempfac = sum(temptabs>tgood)/(1-p(tabs.o)(tgood))
+datc.point = tibble(
+  mids = tempmids
+  , freq = diff(p(tabs.o)(tempedge))*tempfac
+  , freqtrue = diff(p(tabstrue.o)(tempedge))*(1-par.point$pif)*tempfac
+  , group = 'point'
+)
 
-delta.emp = 0.5
-edge.emp = seq(0,15,delta.emp)
-hemp = hist(temptabs, edge.emp, plot = F)
-dat.emp = tibble(mids = hemp$mids, freq = hemp$count, group = 'emp')
+tempfac = sum(temptabs>tgood)/(1-p(tabs.o.alt)(tgood))
+datc.alt = tibble(
+  mids = tempmids
+  , freq = diff(p(tabs.o.alt)(tempedge))*tempfac
+  , freqtrue = diff(p(tabstrue.o.alt)(tempedge))*(1-est.alt$par$pif)*tempfac
+  , group = 'alt'
+)
 
-# rescale
-dat.all = rbind(dat.point,dat.alt) %>% rbind(dat.emp)
-
-scale.df = dat.all %>% filter(mids >= 3) %>% 
-  group_by(group) %>%  
-  summarize(tot = sum(freq)) %>% 
-  pivot_wider(names_from = group, values_from = tot)
-
-dat.all = dat.all %>% 
-  mutate(
-    freq = if_else(group == 'point', freq*scale.df$emp/scale.df$point * delta.emp/ delta.m, freq)
-    , freq = if_else(group == 'alt', freq*scale.df$emp/scale.df$alt * delta.emp/ delta.m, freq)
-  )
+datc.all = datc.emp %>% rbind(datc.point) %>% rbind(datc.alt)
 
 
-## plot ====
+# == datf: hist freq on fine grid ==
+# find normalizations
+tempdelta = diff(edge.c)[1]/diff(edge.f)[1]
+fac.point = sum(temptabs>tgood)/(1-p(tabs.o)(tgood))*tempdelta
+fac.alt   = sum(temptabs>tgood)/(1-p(tabs.o.alt)(tgood))*tempdelta
 
-dat.all %>% filter(group == 'emp') %>% 
+datf.point = tibble(
+  mids = edge.f[1:length(edge.f)-1] + diff(edge.f)[1]/2
+  , freq = diff(p(tabs.o)(edge.f))*fac.point
+  , freqtrue = diff(p(tabstrue.o)(edge.f))*(1-par.point$pif)*fac.point
+  , group = 'point'
+)
+
+datf.alt = tibble(
+  mids = edge.f[1:length(edge.f)-1] + diff(edge.f)[1]/2
+  , freq = diff(p(tabs.o.alt)(edge.f))*fac.alt
+  , freqtrue = diff(p(tabstrue.o.alt)(edge.f))*(1-est.alt$par$pif)*fac.alt
+  , group = 'alt'
+)
+
+# compile data
+datf.all = datf.point %>% rbind(datf.alt)
+
+
+## Model fit ====
+
+datc.all %>% filter(group == 'emp') %>% 
   ggplot(
     aes(x=mids, y=freq)
   ) +
   geom_bar(aes(fill = 'emp'), stat = 'identity') +
   geom_line(
-    data = dat.all %>% filter(group == 'alt')
+    data = datf.all %>% filter(group == 'alt')
     , aes(color = 'alt')
     , linetype = 'dashed'
     , size = 1
-    ) +  
+  ) +  
   geom_line(
-    data = dat.all %>% filter(group == 'point')
+    data = datf.all %>% filter(group == 'point')
     , aes(color = 'point')
     , size = 1
-    ) +
+  ) +
   scale_fill_manual(
     values = c('emp' = 'gray'), name = NULL
     , labels = c('Chen-Zimmermann Data')
@@ -213,7 +234,7 @@ dat.all %>% filter(group == 'emp') %>%
       , 'alt' = MATRED)
     , labels = c(
       TeX('Point Estimate ($\\widehat{\\pi}_F = 0.01$)')
-      , TeX('Estimate Fixing $\\pi_F = $0.50')
+      , TeX(paste0('Estimate Fixing $\\pi_F = $', round(pif_fix,2)))
     )
   ) +
   chen_theme +
@@ -226,10 +247,195 @@ dat.all %>% filter(group == 'emp') %>%
     , axis.ticks.length=unit(0.2, "cm")
   ) + 
   xlab('|t-statistic|') + ylab('Number of Predictors') +
-  coord_cartesian(xlim = c(0,15), ylim = c(0, 80))  +
-  scale_x_continuous(breaks = seq(0,15,2.5))
+  coord_cartesian(xlim = c(0,10), ylim = c(0, 80))  +
+  scale_x_continuous(breaks = seq(0,15,1.0))
 
-ggsave(filename = 'output/model-fit.pdf', width = 4, height = 3, scale = 2.5, device = cairo_pdf)
+ggsave(filename = 'output/model-fit.pdf', width = 4, height = 2.2, scale = 2.5, device = cairo_pdf)
+
+## T vs F in models ====
+
+# basic plot
+p0 = datc.all %>% 
+  filter(group != 'emp') %>% 
+  mutate(
+    group = paste0(group,'c')
+  ) %>% 
+  mutate(freq = freqtrue) %>% 
+  ggplot( 
+    aes(x = mids, y = freq) 
+  ) +
+  geom_bar(
+    stat = 'identity', position = 'identity', alpha = 0.6
+    , aes(fill = group)
+  ) +
+  geom_line(
+    data = datf.all
+    , aes(color = group, linetype = group)
+    , size = 1
+  )   
+
+# label and format
+p0 +
+  scale_fill_manual(
+    name = NULL
+    , values = c('pointc' = MATBLUE, 'altc' = MATRED)
+    , labels = c(
+      TeX('True Predictors ($\\widehat{\\pi}_F = 0.01$)')
+      , TeX(paste0('True Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+    )
+  ) +  
+  scale_linetype_manual(
+    name = NULL
+    , values = c('point' = 'solid', 'alt' = 'dashed')
+    , labels = c(
+      TeX('All Predictors ($\\widehat{\\pi}_F = 0.01$)')
+      , TeX(paste0('All Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+    )
+  ) +
+  scale_color_manual(
+    name = NULL
+    , values = c('point' = MATBLUE, 'alt' = MATRED)    
+    , labels = c(
+      TeX('All Predictors ($\\widehat{\\pi}_F = 0.01$)')
+      , TeX(paste0('All Predictors ($\\pi_F = $', round(pif_fix,2), ')' ) )
+    )
+  ) +  
+  chen_theme +
+  theme(
+    legend.position = c(0.70, 0.65)
+    , legend.margin = margin(t = 0, r = 5, b = 5, l = 5)
+    , legend.key.size = unit(1, 'cm')
+    , legend.text = element_text(size = 20)
+    , panel.border = element_rect(colour = "black", fill=NA, size=1)
+    , axis.ticks.length=unit(0.2, "cm")
+  ) + 
+  xlab('|t-statistic|') + ylab('Count') +
+  coord_cartesian(xlim = c(0,10), ylim = c(0, 80))  +
+  scale_x_continuous(breaks = seq(0,15,1.0))
+
+
+ggsave(filename = 'output/true-vs-all.pdf', width = 4, height = 2.2, scale = 2.5, device = cairo_pdf)
+
+## T vs F point ====
+nport = 5e3
+  
+# simulate point estimate
+mutrue.o = make_mutrue_object(par.point); 
+tabstrue.o = abs(mutrue.o + Norm(0,1))
+dat.point = tibble(
+  group = 'true', tabs = r(tabstrue.o)(round((1-par.point$pif)*nport))
+) %>% 
+  rbind(
+    tibble(
+    group = 'false', tabs = abs(rnorm(round(par.point$pif*nport)))
+    )
+) %>% 
+  mutate(
+    group = factor(group, levels = c('true','false'))
+  )
+
+# count pubs
+npub = sum(pub_prob(dat.point$tabs, par.point))
+
+# make hist data
+delta.c = 0.5
+edge.c = c(seq(0,15,delta.c), 50) # must match previous plot
+hdat = dat.point %>% 
+  group_by(group) %>% 
+  summarize(
+    tmid = hist(tabs, edge.c, plot = F)$mids
+    , n = hist(tabs, edge.c, plot = F)$count
+  ) %>% 
+  mutate(
+    n = n*length(cz_filt_tabs)/npub
+  )
+
+# plot
+ggplot(hdat, aes(x=tmid, y=n, fill=group)) + 
+  geom_bar(stat='identity', position='stack') +
+  geom_vline(xintercept = 1.96, size = 1) + 
+  labs(title = "", x = "|t-statistic|", y = "Number of Factors") +
+  scale_fill_manual(
+    labels = c("True Factor", "False Factor"), 
+    values = c(MATBLUE, MATRED),
+    name = ""
+  ) +
+  chen_theme +
+  scale_x_continuous(breaks = seq(0,16,2)) +
+  theme(
+    legend.position = c(0.75, 0.75)
+    , legend.key.size = unit(0.6,'cm')
+    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.text = element_text(size = 20)    
+  )  +
+  coord_cartesian(xlim = c(0,15), ylim = c(0, 80))  +
+  xlab('|t-statistic|') + ylab('Number of Predictors') +
+  scale_x_continuous(breaks = seq(0,15,2.5))  
+
+
+ggsave('output/true-false-point.pdf', width = 4, height = 4, scale = 1.5, device = cairo_pdf)
+
+
+## T vs F alt ====
+nport = 10e3
+
+# simulate point estimate
+mutrue.o = make_mutrue_object(est.alt$par); 
+tabstrue.o = abs(mutrue.o + Norm(0,1))
+dat.point = tibble(
+  group = 'true', tabs = r(tabstrue.o)(round((1-est.alt$par$pif)*nport))
+) %>% 
+  rbind(
+    tibble(
+      group = 'false', tabs = abs(rnorm(round(est.alt$par$pif*nport)))
+    )
+  ) %>% 
+  mutate(
+    group = factor(group, levels = c('false','true'))
+  )
+
+# count pubs
+npub = sum(pub_prob(dat.point$tabs, est.alt$par))
+
+# make hist data
+delta.c = 0.5
+edge.c = c(seq(0,15,delta.c), 50) # must match previous plot
+hdat = dat.point %>% 
+  group_by(group) %>% 
+  summarize(
+    tmid = hist(tabs, edge.c, plot = F)$mids
+    , n = hist(tabs, edge.c, plot = F)$count
+  ) %>% 
+  mutate(
+    n = n*length(cz_filt_tabs)/npub
+  )
+
+# plot
+ggplot(hdat, aes(x=tmid, y=n, fill=group)) + 
+  geom_bar(stat='identity', position='stack') +
+  geom_vline(xintercept = 1.96, size = 1) + 
+  labs(title = "", x = "|t-statistic|", y = "Number of Factors") +
+  scale_fill_manual(
+    labels = c("False Factor", "True Factor"), 
+    values = c(MATRED, MATBLUE),
+    name = ""
+  ) +
+  chen_theme +
+  scale_x_continuous(breaks = seq(0,16,2)) +
+  theme(
+    legend.position = c(0.75, 0.75)
+    , legend.key.size = unit(0.6,'cm')
+    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.text = element_text(size = 20)    
+  )  +
+  coord_cartesian(xlim = c(0,15), ylim = c(0, 80))  +
+  xlab('|t-statistic|') + ylab('Number of Predictors') +
+  scale_x_continuous(breaks = seq(0,15,2.5))  
+
+
+ggsave('output/true-false-alt.pdf', width = 4, height = 4, scale = 1.5, device = cairo_pdf)
+
+
 
 # PLOTS: T-HURDLES ====
 

@@ -226,7 +226,7 @@ plot = ggplot(hdat_norm, aes(x=tmid, y=n, fill=group)) +
     , legend.title = NULL
     , legend.key.size = unit(0.5,'cm')  
     , legend.text.align = 0    
-    , legend.text = element_text(size=8)
+    , legend.text = element_text(size=9)
     , panel.grid.minor = element_blank()
     , panel.grid.major = element_blank()
     , panel.border = element_blank()

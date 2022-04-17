@@ -49,13 +49,14 @@ for (speci in 1:nspec){
     group_by(stat) %>% 
     summarize(
       sd = sd(value), mean = mean(value), med = median(value)
+      , p10 = quantile(value, 0.10), p90 = quantile(value, 0.90)
     )
   
   # merge
   tab.both = tab.point %>% 
     left_join(tab.mstat, by = 'stat') %>% 
     mutate(name = bootname) %>% 
-    select(name, stat, point, sd, mean, med) 
+    select(name, stat, point, sd, mean, med, p10, p90) 
   
   
   # append
@@ -88,9 +89,9 @@ tab.small = tab.all %>%
 
 
 tab.wide = tab.small %>% 
-  select(name, statid, stat, med, sd) %>% 
+  select(name, statid, stat, p10, p90) %>% 
   pivot_longer(
-    cols = c(med,sd), names_to = 'mstat'
+    cols = c(p10, p90), names_to = 'mstat'
   ) %>% 
   arrange(name,statid,mstat) %>% 
   select(-statid) %>% 
@@ -125,3 +126,21 @@ tab.sorted %>% print()
 # write to disk
 write.csv(tab.sorted, 'output/tab-robust.csv', row.names = F)
 
+
+# CHECK DETAIL ====
+
+print(rdatalist)
+
+# select a spec
+speci = 4
+
+load(rdatalist[speci])
+
+par = bootpar[1,]
+
+tt = seq(0,4,0.1)
+prob = pub_prob(tt,par)
+
+plot(tt,prob)
+
+hist(bootpar$pif)
