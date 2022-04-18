@@ -250,3 +250,21 @@ plot
 
 ggsave('output/hlz-demo.pdf', width = 3, height = 2, scale = 1.5, device = cairo_pdf)
 
+# HLZ DEMO NUMBERS ====
+
+# mean t-stat
+dat %>% filter(group == 'hlz', t>=2) %>% summarize(mean(t))
+
+tt = 4
+
+f_false = 2*dnorm(tt)
+f_false
+
+tabs.o = abs(Exp(rate = 1/lambda_mu) + Norm(0,1))
+
+f_true = d(tabs.o)(tt)
+f_true
+
+f_false/f_true
+
+0.9*f_false/f_true

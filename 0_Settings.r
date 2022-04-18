@@ -773,24 +773,24 @@ sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NUL
 
 # STATS AND PLOTTING ====
 
-shrink_one = function(t,par,mutrue.o=NULL){
+shrink_one = function(tabs,par,mutrue.o=NULL){
   
   if (is.null(mutrue.o)){
     mutrue.o = make_mutrue_object(par)
   }
   
-  # kernel_pos is f(t,mu|mutrue).  it gets reused in the numerator and denom.
-  # note kernel_pos depends on observed t
-  # the dirac term disappears in the numerator, and becomes dnorm(t,0,1) in the denom
-  kernel_pos = function(mm) dnorm(t,mm,1)*d(mutrue.o)(mm) 
+  # kernel_pos is f(tabs,mu|mutrue).  it gets reused in the numerator and denom.
+  # note kernel_pos depends on observed tabs
+  # the dirac term disappears in the numerator, and becomes dnorm(tabs,0,1) in the denom
+  kernel_pos = function(mm) (dnorm(tabs,mm,1)+dnorm(-tabs,mm,1))*d(mutrue.o)(mm) 
   numer = (1-par$pif)*integrate(function (mm) mm*kernel_pos(mm), -Inf, Inf)$value
-  denom = par$pif*dnorm(t,0,1) + (1-par$pif)*integrate(kernel_pos, -Inf, Inf)$value
+  denom = 2*par$pif*dnorm(tabs,0,1) + (1-par$pif)*integrate(kernel_pos, -Inf, Inf)$value
   
-  Emu_t = numer/denom 
-  Eep_t = t-Emu_t
-  bias = Eep_t/t
+  Emu_tabs = numer/denom 
+  Eep_tabs = tabs-Emu_tabs
+  bias = Eep_tabs/tabs
   
-  return = tibble(Emu_t = Emu_t, Eep_t = Eep_t, bias = bias)
+  return = tibble(Emu_tabs = Emu_tabs, Eep_tabs = Eep_tabs, bias = bias)
   
 } # end shrink_one
 

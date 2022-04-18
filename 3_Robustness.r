@@ -104,7 +104,7 @@ set.pif_10 = list(
   , opt_list2 = opts.qa(xtol_rel = 1e-3)  
   , model_fam = data.frame(
     mufam   = 'lognormraw' # 'mix-norm' or 't' or 'lognorm'
-    , pif     = c(NA, 0.2, 0.99)
+    , pif     = c(NA, 0.1, 0.99)
     , mua     = c(NA,    0, 2) # mua = 0 => median = 1.0
     , siga    = c(NA, 0.05, 1) # siga > 1 leads to crazy variances
     , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'  
