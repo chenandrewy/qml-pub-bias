@@ -529,6 +529,8 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
         , bias_med = median(temp$bias)
         , fdrloc_mean = mean(temp$fdr_tabs)
         , fdrloc_med = median(temp$fdr_tabs)        
+        , sbias_mean = mean(temp$bias_signed)
+        , sbias_med = median(temp$bias_signed)        
       )
     
     
@@ -568,12 +570,12 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
       xlab('t-hurdle 5%')
     p.bias = bootstat %>% 
       ggplot(aes(x=bias_mean)) + 
-      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.05)) + 
       theme_minimal() +
       xlab('mean bias')
     p.fdrpub = bootstat %>% 
       ggplot(aes(x=fdrloc_mean)) + 
-      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.1)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.05)) + 
       theme_minimal() +
       xlab('fdr pub')    
     
@@ -773,7 +775,7 @@ sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NUL
 
 # STATS AND PLOTTING ====
 
-shrink_one = function(tabs,par,mutrue.o=NULL){
+shrink_one = function(tabs,par,mutrue.o=NULL, take_abs = T){
   
   if (is.null(mutrue.o)){
     mutrue.o = make_mutrue_object(par)
@@ -782,9 +784,10 @@ shrink_one = function(tabs,par,mutrue.o=NULL){
   # kernel_pos is f(tabs,mu|mutrue).  it gets reused in the numerator and denom.
   # note kernel_pos depends on observed tabs
   # the dirac term disappears in the numerator, and becomes dnorm(tabs,0,1) in the denom
-  kernel_pos = function(mm) (dnorm(tabs,mm,1)+dnorm(-tabs,mm,1))*d(mutrue.o)(mm) 
+  # take_abs = T => additional dnorm terms
+  kernel_pos = function(mm) (dnorm(tabs,mm,1)+take_abs*dnorm(-tabs,mm,1))*d(mutrue.o)(mm) 
   numer = (1-par$pif)*integrate(function (mm) mm*kernel_pos(mm), -Inf, Inf)$value
-  denom = 2*par$pif*dnorm(tabs,0,1) + (1-par$pif)*integrate(kernel_pos, -Inf, Inf)$value
+  denom = (1+take_abs)*par$pif*dnorm(tabs,0,1) + (1-par$pif)*integrate(kernel_pos, -Inf, Inf)$value
   
   Emu_tabs = numer/denom 
   Eep_tabs = tabs-Emu_tabs
@@ -802,14 +805,15 @@ make_stats_pub = function(t, par){
   
   bias = numeric(length(t))
   fdr_tabs = numeric(length(t))
+  bias_signed = numeric(length(t))
   for (i in 1:length(t)){
-    temp = shrink_one(t[i],par,mutrue.o)
-    bias[i] = temp$bias
+    bias[i] = shrink_one(t[i], par, mutrue.o, take_abs = T)$bias
+    bias_signed[i] = shrink_one(t[i], par, mutrue.o, take_abs = F)$bias
     fdr_tabs[i] = 2*dnorm(t[i])*par$pif/d(tabs.o)(t[i]) # times 2 bc abs val
   } # for i
   
   
-  stats_pub = list(bias = bias, fdr_tabs = fdr_tabs)
+  stats_pub = list(bias = bias, fdr_tabs = fdr_tabs, bias_signed = bias_signed)
   
   return = stats_pub
   

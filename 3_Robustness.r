@@ -218,7 +218,9 @@ set.logistic = list(
 
 # compile
 setlist = list(
-  set.raw_stair2_restrict
+  set.tdist
+  , set.mix_norm  
+  , set.raw_stair2_restrict
   , set.raw_stair2
   , set.relax_pubpar  
   , set.pubpar_05
@@ -226,8 +228,6 @@ setlist = list(
   , set.pif_10  
   , set.pif_20  
   , set.exp
-  , set.tdist
-  , set.mix_norm
 )
 
 namelist = sapply(setlist,"[[",'name') 
@@ -235,7 +235,7 @@ print(namelist)
 
 unique(namelist) 
 
-# BOOTSTRAP! ====
+# LOOP OVER ALL SETTINGS! ====
 
 bootlistall = list()
 for (seti in 1:length(setlist)){
