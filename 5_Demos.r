@@ -91,7 +91,7 @@ ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
   theme(
     legend.position = c(0.75, 0.75)
     , legend.key.size = unit(0.6,'cm')
-    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.margin = margin(t = 0, r = 5, b = 5, l = 5)
     , legend.text = element_text(size = 20)    
   ) 
   
@@ -140,7 +140,7 @@ plot = ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
   theme(
     legend.position = c(0.75, 0.75)
     , legend.key.size = unit(0.6,'cm')
-    , legend.margin = margin(t = -10, r = 5, b = 5, l = 5)
+    , legend.margin = margin(t = 5, r = 5, b = 5, l = 5)
     , legend.text = element_text(size = 20)    
   )   
 
@@ -151,47 +151,30 @@ ggsave('output/intro-wrong.pdf', width = 4, height = 4, scale = 1.5, device = ca
 
 
 # HLZ FIG ====
-nsim = 100
-nfac = 1000
+# code is copied from sim_pubcross
+nsim = 200
+nfac = 2000
+nport = nsim*nfac
 
 rho = 0.2
+mua = 0.555/(15/sqrt(12)/sqrt(240)) # p 26, 29
+pubpar1 = 0.5
 
-# use model u = c + v, Cov(c,v) = 0, so rho = sigv^2/(sigu*sigv) = sigv/sigu
-# so sigv = sigu*rho = 1*rho 
-# and then sigu^2 = sigc^2 + sigv^2 so sigc = sqrt(1-rho^2)
-
-sigv = rho
-sigc = sqrt(1-rho^2)
-
-v = rnorm(nfac*nsim, 0, sigv)
-c = rnorm(nfac*nsim, 0, sigc)
-u = c+v
-
-# alt model first
-lambda_mu = 0.55/(15/sqrt(12)/sqrt(240)) # p 26, 29
-mutrue = rexp(n = nfac*nsim, rate = 1/lambda_mu)
-
-# hlz baseline
-type = runif(nfac*nsim) > 0.444
-mumix = mutrue
-mumix[type == F] = 0
-
-
-dat = rbind(
-  tibble(mu = mumix, t = mumix + u, group = 'hlz')  
-  , tibble(mu = mutrue, t = mutrue + u, group = 'alt')
-) %>% 
-mutate(
-  group = factor(group, levels = c('hlz','alt'))
-  , t = abs(t)
-)
-
-
+hlz_dat = sim_hlz(nsim, nfac, pif = 0.444, mua, pubpar1, rho)
+alt_dat = sim_hlz(nsim, nfac, pif = 0, mua, pubpar1, rho)
+dat = hlz_dat %>% mutate(group = 'hlz') %>% 
+  rbind(alt_dat %>% mutate(group = 'alt')) %>% 
+  mutate(
+    group = factor(group, levels = c('hlz','alt'))
+  ) %>% 
+  mutate(
+    t = tabs # because makehist uses t
+  )
 
 # find tail normalization
 sumdat = dat %>% 
   group_by(group) %>% 
-  filter(t>2.57) %>% 
+  filter(tabs>2.57) %>% 
   summarize(n=dplyr::n())
 
 npub_alt_hlz = sumdat$n[2]/sumdat$n[1]
@@ -260,11 +243,29 @@ tt = 4
 f_false = 2*dnorm(tt)
 f_false
 
-tabs.o = abs(Exp(rate = 1/lambda_mu) + Norm(0,1))
+tabs.o = abs(Exp(rate = 1/2) + Norm(0,1))
 
 f_true = d(tabs.o)(tt)
 f_true
 
 f_false/f_true
 
-0.9*f_false/f_true
+pipi = 0.9
+
+(pipi/(1-pipi))*f_false/f_true 
+
+## check ====
+par = data.frame(
+  mua = 2, pif = 0.9, mufam = 'exp'
+)
+  
+tt = 4
+shrink_one(tt, par) %>% print()
+
+
+par0 = data.frame(
+  mua = 2, pif = 0.01, mufam = 'exp'
+)
+
+tt = 4
+shrink_one(tt, par0) %>% print()

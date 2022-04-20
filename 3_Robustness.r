@@ -11,7 +11,7 @@ cz_filt = import_cz(dl=F) %>% filter(tabs > 1.96)
 cz_raw = import_cz(dl=F)  
 
 # bootstrap
-nbootrobust = 200 
+nbootrobust = 500 
 
 # mixture normal
 

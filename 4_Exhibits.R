@@ -17,7 +17,7 @@ loadfonts()
 ## Load data ====
 
 # load semi-par bootstrap for robustness
-load('intermediate/boot a-priori-model semipar started 2022-04-14 22.Rdata')
+load('intermediate/boot a-priori-model semipar started 2022-04-18 16.Rdata')
 
 # merge bootstrapped parameters and boot statistics in two formats
 bootalt.wide = bootpar %>% 
@@ -38,7 +38,7 @@ bootalt.long = bootalt.wide %>%
 
 
 # load main bootstrap
-load('intermediate/boot a-priori-model simple started 2022-04-15 03.Rdata')
+load('intermediate/boot a-priori-model simple started 2022-04-18 22.Rdata')
 
 # merge bootstrapped parameters and boot statistics in two formats
 bootall.wide = bootpar %>% 
@@ -349,7 +349,7 @@ hdat = dat.point %>%
     , n = hist(tabs, edge.c, plot = F)$count
   ) %>% 
   mutate(
-    n = n*length(cz_filt_tabs)/npub
+    n = n*length(cz_filt$tabs)/npub
   )
 
 # plot
@@ -409,7 +409,7 @@ hdat = dat.point %>%
     , n = hist(tabs, edge.c, plot = F)$count
   ) %>% 
   mutate(
-    n = n*length(cz_filt_tabs)/npub
+    n = n*length(cz_filt$tabs)/npub
   )
 
 # plot
@@ -677,7 +677,7 @@ plotme %>%
   )  +
   labs(
     y = "Frequency"
-    , x = TeX(r"(Mean $\log \,\left[ t_i / \[ideal \, t_i\] \right]$ for Published $i$ (\%) )")
+    , x = TeX(r"(Mean $\log \,\left[ t_i / \[unbiased \, t_i\] \right]$ for Published $i$ (\%) )")
   ) +
   chen_theme +
   scale_fill_manual(
@@ -705,45 +705,29 @@ ggsave('output/bias-mean.pdf', width = 6, height = 2.5, scale = 2.0, device = ca
 
 ## fdr pub ====
 
-
-### HLZ's estimate ====
-nsim = 1000
+### hlz estimate more formal ====
+nsim = 100
 nfac = 2000
 
-rho = 0.2
+par = data.frame(
+  mufam = 'exp'  
+  , mua =  0.555/(15/sqrt(12)/sqrt(240)) # p 26, 29
+  , pif = 0.444
+  , pubfam  = 'stair' # 'stair' or 'piecelin' or 'trunc'  
+  , pubpar1 = 0.5
+)
 
-# use model u = c + v, Cov(c,v) = 0, so rho = sigv^2/(sigu*sigv) = sigv/sigu
-# so sigv = sigu*rho = 1*rho 
-# and then sigu^2 = sigc^2 + sigv^2 so sigc = sqrt(1-rho^2)
+hlz_dat = sim_hlz(nsim, nfac, par$pif, par$mua, par$pubpar1, rho = 0.2)
+tabs.o = make_tabs_object(par)
+temp_tabs = hlz_dat %>% filter(pub) %>% pull(tabs)
+tempfdrloc = 2*dnorm(temp_tabs)*par$pif/d(tabs.o)(temp_tabs) # times 2 bc abs val
 
-sigv = rho
-sigc = sqrt(1-rho^2)
+hlz_fdr_loc = mean(tempfdrloc)*100
 
-v = rnorm(nfac*nsim, 0, sigv)
-c = rnorm(nfac*nsim, 0, sigc)
-u = c+v
+# back of env: 
+# a bit higher since it implicitly uses a looser hurdle
+hlz_fdr_env = 5*0.44/(353/1378) 
 
-# alt model first
-lambda_mu = 0.55/(15/sqrt(12)/sqrt(240)) # p 26, 29
-mutrue = rexp(n = nfac*nsim, rate = 1/lambda_mu)
-
-# hlz baseline
-type = runif(nfac*nsim) > 0.444
-mumix = mutrue
-mumix[type == F] = 0
-
-hlzdat = tibble(type = type, mu = mumix, t = mumix + u)  %>% 
-  mutate(
-    tabs = abs(t)
-    , pub = (tabs > 2.57) | (tabs > 1.96 & tabs < 2.57 & runif(1) > 0.5 )
-  )
-
-hlz_estimate = hlzdat %>% 
-  filter(pub) %>% 
-  summarize(
-    fdr = mean(!type)*100
-  ) %>% 
-  pull(fdr)
 
 ### Plot my stuff with HLZ====
 
@@ -775,10 +759,10 @@ plotme %>%
     aes(x=mids, y=freq, group = pif_cat)
   ) +
   geom_vline(
-    xintercept = hlz_estimate
+    xintercept = hlz_fdr_loc
     , linetype = "dashed"
   ) +  
-  annotate('text', x = 15.0, y = 0.39, label = 'HLZ Baseline Estimate', size = 7) +  
+  annotate('text', x = 12.0, y = 0.60, label = 'HLZ Baseline Estimate', size = 7) +  
   geom_bar(
     aes(fill = pif_cat), stat = 'identity', width = 4
   )  +
@@ -798,7 +782,7 @@ plotme %>%
     )))
   )   +
   scale_x_continuous(breaks = seq(0,40, 5) ) +
-  coord_cartesian(ylim = c(0.0215, .40), xlim = c(0,40)) +
+  coord_cartesian(ylim = c(0.029, .70), xlim = c(0,40)) +
   theme(
     legend.position = c(0.80, 0.65)
     , legend.margin = margin(t = 0, r = 5, b = 5, l = 5)
@@ -854,7 +838,7 @@ empcor2 = empcor[lower.tri(empcor)]
 
 # assemble data
 cdat = data.frame(
-  c = bootcor2, group = 'sim', color = niceblue
+  c = bootcor2, group = 'sim', color = MATBLUE
 ) %>% rbind(
   data.frame(
     c = empcor2 , group = 'emp', color = 'gray'
@@ -901,7 +885,7 @@ ggplot(
     , y = 'Density'
   ) +
   scale_color_manual(
-    values=c(niceblue, 'gray')
+    values=c(MATBLUE, 'gray')
   ) +
   scale_linetype_manual(values = c('solid','31'))
 

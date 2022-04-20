@@ -573,13 +573,18 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
       geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.05)) + 
       theme_minimal() +
       xlab('mean bias')
+    p.sbias = bootstat %>% 
+      ggplot(aes(x=sbias_mean)) + 
+      geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.05)) + 
+      theme_minimal() +
+      xlab('mean sbias')    
     p.fdrpub = bootstat %>% 
       ggplot(aes(x=fdrloc_mean)) + 
       geom_histogram(aes(y=stat(density)), breaks = seq(0,1,0.05)) + 
       theme_minimal() +
       xlab('fdr pub')    
     
-    grid.arrange(p.fit,p.pif,p.hurdle,p.bias,p.fdrpub,nrow = 3)  
+    grid.arrange(p.fit,p.pif,p.hurdle,p.fdrpub, p.bias,p.sbias, nrow = 3)  
     
     
   } # for booti
@@ -700,7 +705,6 @@ sim_cz_residuals = function(nport, ndate, seed = NULL){
 
 
 
-
 # function for simulating truth, but only cross-sectional
 sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NULL){
   set.seed(seed)
@@ -772,6 +776,53 @@ sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NUL
   return = pubcross
   
 } # end sim_pubcross
+
+sim_hlz = function(nsim, nfac, pif, mua, pubpar1, rho){
+  # this is its own function bc the exchangeable
+  # correlations are awkward (even though they don't really
+  # change anything)
+  
+  # cross-section of mus  
+  type = runif(nsim*nfac) > pif
+  
+  #   start with everything false
+  mu = numeric(nsim*nfac) 
+  
+  #   then add true stuff
+  mu[type] = rexp(sum(type), rate = 1/mua)
+  
+  # simulate ep
+  # use model u = c + v, Cov(c,v) = 0, so rho = sigv^2/(sigu*sigv) = sigv/sigu
+  # so sigv = sigu*rho = 1*rho 
+  # and then sigu^2 = sigc^2 + sigv^2 so sigc = sqrt(1-rho^2)
+  sigv = rho
+  sigc = sqrt(1-rho^2)
+  
+  temp = list(nsim)
+  for (simi in 1:nsim){
+    
+    v = rnorm(nfac, 0, sigv)
+    c = rnorm(nfac, 0, sigc)
+    u = c+v
+    
+    temp[[simi]] = data.frame(
+      simi = simi, ep = u
+    )
+    
+  } # for simi
+  noise_dat = do.call(rbind, temp)  %>% as_tibble() 
+  
+  temp = runif(nsim*nfac)
+  hlz_dat = noise_dat %>% 
+    mutate(
+      type = type
+      , mu = mu, t = mu + ep, tabs = abs(t)
+      , pub = (tabs > 2.57) | (tabs > 1.96 & tabs < 2.57 & temp <= pubpar1 )
+    )
+  
+  return = hlz_dat
+  
+} # end sim_hlz
 
 # STATS AND PLOTTING ====
 

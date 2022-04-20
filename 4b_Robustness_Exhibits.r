@@ -50,13 +50,14 @@ for (speci in 1:nspec){
     summarize(
       sd = sd(value), mean = mean(value), med = median(value)
       , p10 = quantile(value, 0.10), p90 = quantile(value, 0.90)
+      , p05 = quantile(value, 0.05), p95 = quantile(value, 0.95)      
     )
   
   # merge
   tab.both = tab.point %>% 
     left_join(tab.mstat, by = 'stat') %>% 
     mutate(name = bootname) %>% 
-    select(name, stat, point, sd, mean, med, p10, p90) 
+    select(name, stat, point, sd, mean, med, p05, p10, p90, p95) 
   
   
   # append
@@ -74,9 +75,12 @@ if (length(namesdistinct) != length(rdatalist)){
 
 # CLEAN UP ====
 
+mstat1 = 'p05'
+mstat2 = 'p95'
+
 # select statistics and order
 statlist = tibble(
-  stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean')
+  stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean','sbias_mean')
 ) 
 statlist$statid = 1:dim(statlist)[1]
 
@@ -89,9 +93,9 @@ tab.small = tab.all %>%
 
 
 tab.wide = tab.small %>% 
-  select(name, statid, stat, p10, p90) %>% 
+  select(name, statid, stat, all_of(mstat1), all_of(mstat2)) %>% 
   pivot_longer(
-    cols = c(p10, p90), names_to = 'mstat'
+    cols = c(mstat1, mstat2), names_to = 'mstat'
   ) %>% 
   arrange(name,statid,mstat) %>% 
   select(-statid) %>% 
@@ -99,10 +103,22 @@ tab.wide = tab.small %>%
     names_from = c(stat,mstat)
   )
 
-rownames(tab.wide) = tab.wide$name
+# use signs if mutrue can be negative   
+tab.wide2 = tab.wide %>% 
+  mutate(
+    bias_mean_p05 = if_else(
+      name %in% c('tdist','mix_norm'), sbias_mean_p05, bias_mean_p05
+    )  
+    , bias_mean_p95 = if_else(
+      name %in% c('tdist','mix_norm'), sbias_mean_p95, bias_mean_p95
+    )  
+  )  %>% 
+  select(name, starts_with('h_fdr'), starts_with('bias_mean'), starts_with('fdrloc'))
+
+rownames(tab.wide2) = tab.wide2$name
 
 # reorder
-tab.sorted = tab.wide[
+tab.sorted = tab.wide2[
   c(
     'raw-stair2'
     , 'raw-stair2-restrict'
