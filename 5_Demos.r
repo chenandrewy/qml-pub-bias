@@ -35,15 +35,21 @@ makehist = function(dat, edge = seq(0,10, 0.5)){
 
 ## shared setup ====
 
-# parameters hand-selected so that pr_tgt2 = 0.5 and pr_tgt3_tgt2 = 0.5
-# too lazy too code up numerical solver
+# parameters hand-selected so that 
+# pr_tgt2 = 0.5, pr_tgt3_tgt2 = 0.5, and the observed dist is downward sloping 
+# (like data)
+
+# shape is chosen for easy understanding and clarity between true and false and parsimony
+
+set.seed(111)
 
 simall = tibble(
   t = abs(rnorm(nfac*nsim,0,1)), group = F
 ) %>% 
   rbind(
     tibble(
-      t  = rgamma(n= nfac*nsim, shape = 2, scale = 0.8) + 1.65, group = T
+      t  = rgamma(n= nfac*nsim, shape = 1.8, scale = 0.9) + 176.3/100
+      , group = T
     )
   ) %>% 
   mutate(
@@ -97,10 +103,17 @@ ggplot(hdat, aes(x=tmid, y=n, fill=group)) +
   
 
 
-
 ggsave('output/intro-realistic.pdf', width = 4, height = 4, scale = 1.5, device = cairo_pdf)
 
 
+# check stats
+tempf = ecdf(simall$t)
+c((1-tempf(2)), (1-tempf(3))/(1-tempf(2)))
+simall %>% group_by(group) %>% 
+  summarize(tgt2 = sum(t>2), tlt2 = sum(t<2), tot = dplyr::n()) %>% 
+  mutate(tgt2share = tgt2/tot, tlt2share = tlt2/tot)
+hdat %>% mutate(tgt = tmid>2) %>% group_by(group,tgt) %>% 
+  summarize(sum(n))
 
 ## FIG: WRONG INTUITION DEMO ====
 
