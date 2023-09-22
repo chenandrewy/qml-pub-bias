@@ -18,7 +18,6 @@ nspec = length(rdatalist)
 tab.all = tibble()
 for (speci in 1:nspec){
   
-  # speci = 8
   load(rdatalist[speci])
   
   # merge bootstrapped parameters and boot statistics in two formats

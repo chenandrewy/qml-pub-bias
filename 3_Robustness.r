@@ -1,4 +1,8 @@
 # one script to run all robustness tests 2022 04 08
+# outputs Rdata to intermediate/ 
+# does not overwrite unless run twice in the same day
+
+# 20 sec per bootstrap, 3 hours per model, 30 hours total
 
 # SETUP  ====
 rm(list = ls())
@@ -6,17 +10,15 @@ source('0_Settings.r')
 
 # ESTIMATION SETUP ====
 
-# filter or not
+# filter or alternative filter
+# keeping tabs < 0 (like tabs = 0.05) leads to hard to interpret shrinkage (dividing by 0.05)
 cz_filt = import_cz(dl=F) %>% filter(tabs > 1.96)
-cz_raw = import_cz(dl=F)  
+cz_filt_less = import_cz(dl=F)  %>% filter(tabs > 0.5)
 
 # bootstrap
 nbootrobust = 500 
 
-# mixture normal
-
-
-# raw t-stat, staircase pub prob
+# raw t-stat, staircase pub prob (not really raw anymore)
 set.raw_stair2 = list(
   opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
   , opt_list1 = opts.crs(maxeval = 200)
@@ -37,7 +39,7 @@ set.raw_stair2 = list(
 )
 
 
-# raw t-stat, staircase pub prob
+# raw t-stat, staircase pub prob, restricted (not really raw anymore)
 set.raw_stair2_restrict = list(
   opt_method = 'two-stage' # 'two-stage' or 'crs-only' or 'pif-grid'
   , opt_list1 = opts.crs(maxeval = 200)
@@ -217,18 +219,27 @@ set.logistic = list(
 
 
 # compile
+# setlist = list(
+#   set.tdist
+#   , set.mix_norm  
+#   , set.raw_stair2_restrict
+#   , set.raw_stair2
+#   , set.relax_pubpar  
+#   , set.pubpar_05
+#   , set.logistic  
+#   , set.pif_10  
+#   , set.pif_20  
+#   , set.exp
+# )
+
+
+# debug
 setlist = list(
-  set.tdist
-  , set.mix_norm  
-  , set.raw_stair2_restrict
+  set.raw_stair2_restrict
   , set.raw_stair2
-  , set.relax_pubpar  
-  , set.pubpar_05
-  , set.logistic  
-  , set.pif_10  
-  , set.pif_20  
-  , set.exp
 )
+nbootrobust = 100
+# end debug
 
 namelist = sapply(setlist,"[[",'name') 
 print(namelist)
@@ -247,13 +258,13 @@ for (seti in 1:length(setlist)){
   
   # load the right tabs
   if (grepl('raw', setlist[[seti]]$name)){
-    temp_cz = cz_raw 
+    temp_cz = cz_filt_less 
   } else {
     temp_cz = cz_filt
   }
   
-  temp_cz
-  
+  # shuffle data and estimate
+  #   this call saves Rdata to intermediate/boot [name] [date].RData
   bootlistall[[seti]] = bootstrap(
     temp_cz$tabs
     , setlist[[seti]]
