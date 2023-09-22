@@ -17,7 +17,7 @@ loadfonts()
 ## Load data ====
 
 # load semi-par bootstrap for robustness
-load('intermediate/boot a-priori-model semipar started 2022-04-18 16.Rdata')
+load('intermediate/boot a-priori-model semipar started 2023-07-27 07.Rdata')
 
 # merge bootstrapped parameters and boot statistics in two formats
 bootalt.wide = bootpar %>% 
@@ -38,7 +38,11 @@ bootalt.long = bootalt.wide %>%
 
 
 # load main bootstrap
-load('intermediate/boot a-priori-model simple started 2022-04-18 22.Rdata')
+load('intermediate/boot a-priori-model simple started 2023-07-27 12.Rdata')
+
+# testing
+# load('intermediate/boot robust-raw-stair2 started 2023-07-28 06.Rdata')
+
 
 # merge bootstrapped parameters and boot statistics in two formats
 bootall.wide = bootpar %>% 
@@ -213,7 +217,8 @@ datc.all %>% filter(group == 'emp') %>%
   ) +
   geom_bar(aes(fill = 'emp'), stat = 'identity') +
   geom_line(
-    data = datf.all 
+    data = datf.all %>% 
+      mutate(group = factor(group, levels = c('point','alt')))
     , aes(color = group, linetype = group)
     , size = 1
   ) +  
@@ -641,7 +646,7 @@ ggsave('output/t-fdr01.pdf', width = 6, height = 2.5, scale = 2.0, device = cair
 ## mean shrinkage ====
 
 pif_cut = c(1/3,2/3)
-edge = seq(0,50,5)
+edge = seq(-20,50,5)
 
 plotme0 = bootall.wide %>% 
   transmute(pif, x = bias_mean) %>% 
@@ -663,6 +668,7 @@ plotme = plotme0 %>%
   )   
 
 # make plot
+#   to check formula, see trace bias_mean back to shrink_one_pub line 854 (Eep_tabs)
 plotme %>% 
   ggplot(
     aes(x=mids, y=freq, group = pif_cat)
@@ -677,7 +683,8 @@ plotme %>%
   )  +
   labs(
     y = "Frequency"
-    , x = TeX(r"(Mean $\log \,\left[ t_i / \[unbiased \, t_i\] \right]$ for Published $i$ (\%) )")
+    # , x = TeX(r"(Mean of $\left[ |t_i| - \[unbiased \, t_i\] \right]/|t_i|$ for Published $i$ (\%) )")
+    , x = TeX(r"(Mean of $\left[ |t_i| - E(\mu_i |\,  |t_i|) \right]/|t_i|$ for Published $i$ (\%) )")    
   ) +
   chen_theme +
   scale_fill_manual(
@@ -690,8 +697,8 @@ plotme %>%
       "$\\widehat{\\pi}_F  > 2/3$"
     )))
   )   +
-  scale_x_continuous(breaks = seq(0,40, 5) ) +
-  coord_cartesian(ylim = c(0.0215, .40), xlim = c(0,40)) +
+  scale_x_continuous(breaks = seq(-40,40, 5) ) +
+  coord_cartesian(ylim = c(0.0215, .40), xlim = c(-20,40)) +
   theme(
     legend.position = c(0.80, 0.65)
     , legend.margin = margin(t = 0, r = 5, b = 5, l = 5)

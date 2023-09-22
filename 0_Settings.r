@@ -297,7 +297,7 @@ estimate = function(est.set, tabs, par.guess, print_level = 0){
     # test likelihood at guess
     parvecguess = par2parvec(par.guess,est_names)
     minme(parvecguess)    
-    
+
     # optimize
     opt = nloptr(
       x0 = par2parvec(par.guess, est_names)
@@ -706,7 +706,7 @@ sim_cz_residuals = function(nport, ndate, seed = NULL){
 
 
 # function for simulating truth, but only cross-sectional
-sim_pubcross = function(par, nport, ndate, eptype = 'ar1', rho = 0.5, seed = NULL){
+sim_pubcross = function(par, nport, ndate = NULL, eptype = 'ar1', rho = 0.5, seed = NULL){
   set.seed(seed)
   
   # cross-section of mus  

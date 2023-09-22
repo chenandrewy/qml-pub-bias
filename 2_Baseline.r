@@ -1,3 +1,6 @@
+# saves to disk '../intermediate/boot a-priori-model*.Rdata'
+# the save happens in the bootstrap function
+
 # SETUP  ====
 
 rm(list = ls())

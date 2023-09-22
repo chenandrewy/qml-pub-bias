@@ -1,5 +1,7 @@
 # 2022 04 Andrew: estimations on simulated data with correlations
 
+# also downloads cz data
+
 # Based off experiments/qml5*.ret
 # takes 20 minutes for n_miniboot = 10
 # 3 hours for n_miniboot = 100
@@ -38,7 +40,7 @@ n_miniboot = 100
 # TEST POINT ESTIMATE ====
 tic = Sys.time()
 
-cz_filt_tabs = import_cz(dl=F) %>% filter(tabs >= 1.96) %>% pull(tabs)
+cz_filt_tabs = import_cz(dl=T) %>% filter(tabs >= 1.96) %>% pull(tabs)
 
 est.point = estimate(
   est.set = set.check
@@ -69,7 +71,7 @@ nshrink = 1000
 
 temp.truth = est.point$par %>% mutate(pif = 0.9)
   
-sim.one = sim_pubcross(temp.truth, nport = 10000, eptype = 'boot', seed = 938)
+sim.one = sim_pubcross(par = temp.truth, nport = 10000, ndate = 30*12, eptype = 'boot', seed = 938)
 
 nshrink = min(dim(sim.one)[1], nshrink)
 
@@ -153,7 +155,7 @@ for (truthi in 1:nrow(parveclist)){
     print(paste0('truthi = ', truthi, ' of ', nrow(parveclist)))
     print(paste0('booti = ', booti))
     
-    samp = sim_pubcross(par.truth, nport, 'ar1', par.truth$rho, seed = booti*853)
+    samp = sim_pubcross(par.truth, nport, NULL, 'ar1', par.truth$rho, seed = booti*853)
     
     # estimate ===
     par.guess = par.guess.all[truthi, ]
