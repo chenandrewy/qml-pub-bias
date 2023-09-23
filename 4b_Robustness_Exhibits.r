@@ -8,7 +8,8 @@ source('0_Settings.r')
 # choose files to import
 rdatalist = dir('intermediate/', full.names = T) %>% 
   as_tibble() %>% 
-  filter(grepl('boot robust-', value)) %>% 
+  filter(grepl('boot robust-', value) | 
+grepl('boot a-priori-model simple', value)) %>% 
   pull(value)
 
 
@@ -95,15 +96,10 @@ statlist = tibble(
   stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean','sbias_mean','nboot')
 ) 
 statlist$statid = 1:dim(statlist)[1]
-
-
 tab.small = tab.all %>% 
-  mutate(
-    name = substr(name, 8, nchar(name))
-  ) %>% 
   inner_join(statlist, by = 'stat') 
 
-
+# change to wide
 tab.wide = tab.small %>% 
   select(name, statid, stat, all_of(mstat1), all_of(mstat2)) %>% 
   pivot_longer(
@@ -118,14 +114,14 @@ tab.wide = tab.small %>%
     tab.small  %>% distinct(name, nboot), by = 'name'
   )
 
-# use signs if mutrue can be negative   
+# use signed bias (sbias) if mutrue can be negative   
 tab.wide2 = tab.wide %>% 
   mutate(
     bias_mean_p05 = if_else(
-      name %in% c('tdist','mix_norm'), sbias_mean_p05, bias_mean_p05
+      name %in% c('robust-tdist','robust-mix_norm'), sbias_mean_p05, bias_mean_p05
     )  
     , bias_mean_p95 = if_else(
-      name %in% c('tdist','mix_norm'), sbias_mean_p95, bias_mean_p95
+      name %in% c('robust-tdist','robust-mix_norm'), sbias_mean_p95, bias_mean_p95
     )  
   )  %>% 
   select(name
@@ -133,12 +129,20 @@ tab.wide2 = tab.wide %>%
   , nboot
   )
 
+# rename 
+tab.wide2 = tab.wide2  %>% 
+  mutate(
+    name = str_remove(name, 'robust-')
+    , name = if_else(name == 'a-priori-model simple', 'baseline', name)
+  )
+
 rownames(tab.wide2) = tab.wide2$name
 
 # reorder
 tab.sorted = tab.wide2[
   c(
-    'raw-stair2'
+    'baseline'
+    , 'raw-stair2'
     , 'raw-stair2-restrict'
     , 'pif_10'
     , 'pif_20'
