@@ -10,6 +10,8 @@ library(nloptr)
 library(distr) 
 library(ggplot2)
 library(gridExtra)
+library(foreach)
+library(doParallel)
 
 dir.create('intermediate/', showWarnings = F)
 dir.create('output/', showWarnings = F)
@@ -593,6 +595,8 @@ bootstrap = function(tabs,set.boot,nboot,bootname = 'deleteme'){
   return = bootlist
   
 } # end function bootstrap
+
+
 
 # DATA GENERATION ====
 

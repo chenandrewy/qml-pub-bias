@@ -16,14 +16,26 @@ rdatalist = dir('intermediate/', full.names = T) %>%
 nspec = length(rdatalist)
 
 tab.all = tibble()
-for (speci in 1:nspec){
-  
-  load(rdatalist[speci])
+for (speci in 1:nspec){  
   
   # merge bootstrapped parameters and boot statistics in two formats
-  bootall.wide = bootpar %>% 
-    left_join(bootstat, by = 'booti') %>% 
-    as_tibble()
+  # checking to see if it's the old (pre 2023-09) or new format
+  rdata_items = load(rdatalist[speci])
+  if (length(rdata_items) > 1){
+    # old style
+    load(rdatalist[speci])
+    bootall.wide = bootpar %>% 
+      left_join(bootstat, by = 'booti') %>% 
+      as_tibble()
+    name_cur = bootname
+  }  else {    
+    # new style
+    load(rdatalist[speci])
+    bootall.wide = boot$par %>% 
+      left_join(boot$stat, by = 'booti') %>% 
+      as_tibble()    
+    name_cur = boot$name
+  }
   
   # clean up, multiply 100 if it's nice
   bootall.long =  bootall.wide %>% 
@@ -50,13 +62,14 @@ for (speci in 1:nspec){
       sd = sd(value), mean = mean(value), med = median(value)
       , p10 = quantile(value, 0.10), p90 = quantile(value, 0.90)
       , p05 = quantile(value, 0.05), p95 = quantile(value, 0.95)      
+      , nboot = dplyr::n()
     )
   
   # merge
   tab.both = tab.point %>% 
     left_join(tab.mstat, by = 'stat') %>% 
-    mutate(name = bootname) %>% 
-    select(name, stat, point, sd, mean, med, p05, p10, p90, p95) 
+    mutate(name = name_cur) %>% 
+    select(name, stat, point, sd, mean, med, p05, p10, p90, p95, nboot) 
   
   
   # append
@@ -79,7 +92,7 @@ mstat2 = 'p95'
 
 # select statistics and order
 statlist = tibble(
-  stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean','sbias_mean')
+  stat = c('h_fdr5','h_fdr1','bias_mean','fdrloc_mean','sbias_mean','nboot')
 ) 
 statlist$statid = 1:dim(statlist)[1]
 
@@ -100,6 +113,9 @@ tab.wide = tab.small %>%
   select(-statid) %>% 
   pivot_wider(
     names_from = c(stat,mstat)
+  )  %>% 
+  left_join(
+    tab.small  %>% distinct(name, nboot), by = 'name'
   )
 
 # use signs if mutrue can be negative   
@@ -112,7 +128,10 @@ tab.wide2 = tab.wide %>%
       name %in% c('tdist','mix_norm'), sbias_mean_p95, bias_mean_p95
     )  
   )  %>% 
-  select(name, starts_with('h_fdr'), starts_with('bias_mean'), starts_with('fdrloc'))
+  select(name
+  , starts_with('h_fdr'), starts_with('bias_mean'), starts_with('fdrloc')
+  , nboot
+  )
 
 rownames(tab.wide2) = tab.wide2$name
 
@@ -140,26 +159,3 @@ tab.sorted %>% print()
 
 # write to disk
 write.csv(tab.sorted, 'output/tab-robust.csv', row.names = F)
-
-
-# CHECK DETAIL ====
-
-print(rdatalist)
-
-# select a spec
-speci = 2
-
-load(rdatalist[speci])
-
-par = bootpar[1,]
-
-tt = seq(0,4,0.1)
-prob = pub_prob(tt,par)
-
-plot(tt,prob)
-
-hist(bootpar$pubpar2)
-
-plot(bootpar$pif, bootpar$pubpar1)
-
-par

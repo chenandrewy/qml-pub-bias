@@ -1,12 +1,14 @@
 # one script to run all robustness tests 2022 04 08
 # outputs Rdata to intermediate/ 
-# does not overwrite unless run twice in the same day
+# does not overwrite unless run twice in the same hour
 
-# 20 sec per bootstrap, 3 hours per model, 30 hours total
+# serial: 20 sec per bootstrap, 3 hours per model, 30 hours total
+# 10 cores: seems to take 20 minutes per 500 bootstraps, 3 hours total
 
 # SETUP  ====
 rm(list = ls())
 source('0_Settings.r')
+
 
 # ESTIMATION SETUP ====
 
@@ -16,7 +18,9 @@ cz_filt = import_cz(dl=F) %>% filter(tabs > 1.96)
 cz_filt_less = import_cz(dl=F)  %>% filter(tabs > 0.5)
 
 # bootstrap
-nbootrobust = 500 
+techset = list()
+techset$nboot = 500
+techset$ncores = 10 # round(.4*detectCores()), eats a lot of ram
 
 # raw t-stat, staircase pub prob (not really raw anymore)
 set.raw_stair2 = list(
@@ -219,27 +223,19 @@ set.logistic = list(
 
 
 # compile
-# setlist = list(
-#   set.tdist
-#   , set.mix_norm  
-#   , set.raw_stair2_restrict
-#   , set.raw_stair2
-#   , set.relax_pubpar  
-#   , set.pubpar_05
-#   , set.logistic  
-#   , set.pif_10  
-#   , set.pif_20  
-#   , set.exp
-# )
-
-
-# debug
 setlist = list(
-  set.raw_stair2_restrict
+  set.tdist
+  , set.mix_norm
+  , set.raw_stair2_restrict
   , set.raw_stair2
+  , set.relax_pubpar
+  , set.pubpar_05
+  , set.logistic
+  , set.pif_10
+  , set.pif_20
+  , set.exp
 )
-nbootrobust = 100
-# end debug
+
 
 namelist = sapply(setlist,"[[",'name') 
 print(namelist)
@@ -247,11 +243,14 @@ print(namelist)
 unique(namelist) 
 
 # LOOP OVER ALL SETTINGS! ====
+source('0b_Bootstrap_Parallel.R')
 
 bootlistall = list()
+start_time = Sys.time()
 for (seti in 1:length(setlist)){
   
-  # run one ====
+  ## run one ====
+  print(techset)
   print(
     paste0('robustness seti = ', seti, ' | ', setlist[[seti]]$name)
   )
@@ -263,14 +262,32 @@ for (seti in 1:length(setlist)){
     temp_cz = cz_filt
   }
   
-  # shuffle data and estimate
-  #   this call saves Rdata to intermediate/boot [name] [date].RData
-  bootlistall[[seti]] = bootstrap(
-    temp_cz$tabs
-    , setlist[[seti]]
-    , nbootrobust
-    , setlist[[seti]]$name
+  # bootstrap in parallel  
+  boot = bootstrap_parallel(
+    tabs = temp_cz$tabs
+    , set.boot = setlist[[seti]]
+    , nboot = techset$nboot
+    , ncores = techset$ncores
   )
+  boot$name = setlist[[seti]]$name
+  cur_time = Sys.time()
+
+  # estimate time remaining
+  time_per_set = difftime(cur_time , start_time, units = 'min')/seti
+  time_remaining = time_per_set*(length(setlist) - seti)
+  print(paste0('minutes per set = ', time_per_set))
+  print(paste0('minutes remaining = ', time_remaining))
+  
+  # save to disk
+  filename = paste0('boot ', setlist[[seti]]$name, ' started ', start_time)
+  filename = gsub('[:]', '-', filename)
+  filename = substr(filename, 1, nchar(filename)-6) # drop minute and second
+  save(
+    list = c('boot')
+    , file = paste0('intermediate/', filename, '.Rdata')
+    , envir = environment()
+  )
+    
   # end run one ====
   
 } # for seti
