@@ -59,10 +59,63 @@ estimate_mu_t = function(l, t){
     return(muhat)
 }
 
+# show how zmin affects estimation of lambda --------------------------------
+# E(t|pub) increases in zmin, so the lambdahat ends up too large
+
+lambda_list = seq(1, 10, 0.2)
+zmin_list = c(-Inf, 1)
+par_list = expand_grid(lambda = lambda_list, zmin = zmin_list) %>% 
+    mutate(Et_pub = NA_real_)
+Nsim = 100*1000
+Et_pub_data = 3.5
+
+# loop over settings
+for (i in 1:nrow(par_list)){    
+    print(paste0(i, ' of ', nrow(par_list)))
+    par0 = par_list[i,]
+    temp = simulate_factors(lambda=par0$lambda, zmin=par0$zmin, N=Nsim)
+    par_list$Et_pub[i] = mean(temp[pub == TRUE, t])
+} # end for i in 1:nrow(par_list)
+
+# solve for lambda for each zmin
+lambda_est = par_list %>% 
+    mutate(err = (Et_pub - Et_pub_data)^2) %>% 
+    group_by(zmin) %>% 
+    arrange(zmin,err) %>% 
+    slice(1) %>% 
+    select(zmin, everything())
+
+# plot
+p = par_list %>% mutate(zmin = factor(zmin, levels = zmin_list
+        , labels=c('Assuming no z requirement', 'Actual: z > 1 required'))) %>% 
+    ggplot(aes(x = lambda, y = Et_pub, color = zmin, linetype=zmin)) +
+    geom_line(size=1.5) +
+    labs(x = TeX("$\\lambda$"), y = 'Mean published t-stat') +
+    chen_theme +
+    scale_color_manual(values = c('gray', MATRED), name = 'Min z for publication') +
+    scale_linetype_manual(values = c(1, 2), name = 'Min z for publication') +
+    theme(legend.position = c(8,3)/10, legend.text = element_text(size = 16),
+        legend.key.size = unit(1, 'cm')) +
+    # horizontal line for data
+    geom_hline(yintercept = Et_pub_data, linetype = 2, color = 'black') +
+    annotate('text', x = 2, y = 3.55, label = 'Data', size = 6, color = 'black') +
+    # vertical line for lambda estimates
+    geom_vline(data=lambda_est[1,], aes(xintercept = lambda), color='gray') +
+    annotate('text', x = 6.3, y = 2.65, label=TeX("$\\lambda_{est}$"), 
+        size = 11, color = 'gray50')+
+    # vertical line for actual lambda
+    geom_vline(data=lambda_est[2,], aes(xintercept = lambda), color=MATRED) +
+    annotate('text', x=4.5, y=2.65, label=TeX("$\\lambda_{act}$"),
+        size = 11, color = MATRED)     
+
+ggsave('output/demo-other-evidence-lambda-bias.pdf',p, width = 4, height = 2.2, 
+    scale = 2.5, device = cairo_pdf)
+
 # examine one simulation --------------------------------------------------
 # check var([ep_t ep_z]) is close to [1 rho; rho 1]
 # check: slope of mu on muhat should be 1 if you use the right lambda
 # check: bias should be zero if zmin0 = -Inf
+# check: lhat > l0 if zmin0 is not -Inf but is assumed to be
 
 # user
 l0 = 3
@@ -145,26 +198,30 @@ pubmean_list = pubmean_list %>% mutate(
     shrink = 1 - mu/t, shrinkhat = 1 - muhat/t, bias = shrinkhat - shrink
 )
 
+
 # plot shrinkage
 xlimmax = 0.8
 p = par_list %>% bind_cols(pubmean_list) %>% 
     mutate(zmin = as.factor(zmin), rho = as.factor(rho)) %>%
     ggplot(aes(x = shrinkhat, y = shrink
-        , color = zmin, shape = rho))  +
+        , color = rho, shape = zmin))  +
     geom_abline(intercept = 0, slope = 1, linetype = 1, color = 'black') +
-    geom_point(size = 3.5) +
-    scale_color_manual(values = c('gray',MATBLUE, MATYELLOW, MATRED), 
-        name = 'Min z for publication') + 
-    scale_shape_manual(values = c(16, 2), name = 'Cor(t-stat,z)') +
+    geom_point(size = 4.5) +
+    scale_color_manual(values = c(MATBLUE,MATYELLOW),
+        name = TeX("$\\rho = Cor(t_i,z_i|\\mu_i)$")) +
+    scale_shape_manual(values = c(16, 17, 15, 3), name = TeX("Min $z_i$ for pub")) +    
     labs(x = 'estimated shrinkage', y = 'actual shrinkage') +
     chen_theme +
     coord_cartesian(xlim = c(0, xlimmax), ylim = c(0, xlimmax)) +
     theme(
-        legend.position = c(8,3)/10, 
-        legend.text = element_text(size = 12),
-        # legend.margin = margin(0,0,0,0),
-        legend.key.size = unit(0.5, 'cm'),
-        legend.title = element_text(size = 13)
+        legend.position = c(8.6,3.8)/10, 
+        legend.text = element_text(size = 16),
+        legend.margin = margin(0.2, 0.2, 0.2, 0.2, 'cm'),
+        legend.key.size = unit(0.7, 'cm'),
+        legend.title = element_text(size = 16),
+        # axis lines
+        panel.grid.major = element_line(color = 'gray90'),
     )     
 ggsave('output/demo-other-evidence-shrink.pdf',p, width = 4, height = 2.2, 
     scale = 2.5, device = cairo_pdf)
+
