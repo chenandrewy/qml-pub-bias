@@ -9,6 +9,7 @@ Having said that the results using QML and SMM are not very different.  The most
 
 To replicate, run files with prefixes 1-6. It should auto-download any data you need. 
 
+## Code 
 All code is in R. Required packages are listed in `O_Settings.r`.
 
 - `0_Settings.r`: Declares libraries, functions, globals, except for the parallel bootstrap
@@ -20,3 +21,6 @@ All code is in R. Required packages are listed in `O_Settings.r`.
     - `4b_Robustness_Exhibits`: Outputs robustness exhibits to `output/`
 - `5_Demos.r`: Outputs the easy HLZ and intro exhibits to `output/`
 - `6_Demos_Other_Evidence.r`: Simulates a model with supplementary evidence, outputs figures to `output/`
+
+## Saved Output / Data
+The intermediate data files and output of the last runs of the code are in `intermediate/` and `output/`. Mapping file names to the figures in the paper should be straightforward.
