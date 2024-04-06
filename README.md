@@ -1,5 +1,5 @@
 # qml-pub-bias
-Estimates t-hurdles, bias adjustments, and local FDRs on the Chen-Zimmermann Dataset for the paper "Do t-stat hurdles need to be raised?"
+Estimates t-hurdles, bias adjustments, and local FDRs on the Chen-Zimmermann Dataset for the paper "Do t-stat hurdles need to be raised?" (https://arxiv.org/pdf/2204.10275.pdf).
 
 This version uses QML, replacing several previous versions that use SMM.  QML is much cleaner in this setting due to the huge amount of estimation noise that comes with truncated simulations (unless you do the truncated simulations very carefully).  This lets you run everything without in a few days without a supercomputer.
 
